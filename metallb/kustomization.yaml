@@ -1,0 +1,10 @@
+# MetalLB setup
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: metallb-system
+
+resources:
+- https://raw.githubusercontent.com/metallb/metallb/v0.15.2/config/manifests/metallb-native.yaml
+- resources/l2-ip.l2advertisement.metallb.yaml
+- resources/default-pool.ipaddresspool.metallb.yaml

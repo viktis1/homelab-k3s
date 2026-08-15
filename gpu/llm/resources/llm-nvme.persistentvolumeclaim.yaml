@@ -1,0 +1,14 @@
+# llama.cpp claim of persistent storage
+apiVersion: v1
+kind: PersistentVolumeClaim
+
+metadata:
+  name: models-llm
+spec:
+  accessModes:
+  - ReadWriteOnce
+  storageClassName: local-path
+  volumeName: llm-nvme-models
+  resources:
+    requests:
+      storage: 99Gi

@@ -1,0 +1,18 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: llm
+
+resources:
+  - resources/llm.namespace.yaml
+  - resources/llm-nvme.persistentvolume.yaml
+  - resources/llm-nvme.persistentvolumeclaim.yaml
+
+
+configMapGenerator:
+  - name: llm-job-template
+    files:
+      - templates/llm.job.yaml
+
+generatorOptions:
+  disableNameSuffixHash: true

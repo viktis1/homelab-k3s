@@ -1,0 +1,13 @@
+# MetalLB setup
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: adguard
+
+resources:
+- resources/adguard.namespace.yaml
+- resources/adguard-fast-disk-work.persistentvolume.yaml
+#- resources/adguard-fast-disk-conf.persistentvolume.yaml
+- resources/adguard.viktor.cloud-tls.certificate.cert-manager.yaml
+- resources/adguard.viktor.cloud.ingressroute.traefik.yaml
+- components/adguard-home

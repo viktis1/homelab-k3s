@@ -1,0 +1,3 @@
+# Small orchestrator to create jobs on the GPU
+The orchestrator will make it possible to create jobs on the GPU (that are request-based and so on).
+So far, only open-source LLMs will be available. It currently only supports HF models (but it can handle any model, as long as it can run on 24GB VRAM). Just specify the prompt, HF repo and HF file from that repo. FInding an open source LLM that can run on 24 GB VRAM is a challenge in and of itself, and honeslty I would just ask one of your LLMs to do it because there is so much material out there... [Context for your LLM to create some criterias for repos.](https://huggingface.co/blog/dvilasuero/choosing-best-open-source-ai-models)

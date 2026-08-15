@@ -1,0 +1,77 @@
+# Adguard StatefulSet for a server pod
+apiVersion: apps/v1
+kind: StatefulSet
+
+metadata:
+  name: adguard-home
+spec:
+  replicas: 1
+  serviceName: adguard-home-web
+  template:
+    spec:
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+      initContainers:
+      - name: config-init
+        image: busybox:1.38.0
+        command: ['sh', '-c', 'cp /config-template/AdGuardHome.yaml /opt/adguardhome/conf/AdGuardHome.yaml']
+        volumeMounts:
+        - name: adguard-config-template
+          mountPath: /config-template
+        - name: adguard-conf-dir
+          mountPath: /opt/adguardhome/conf
+      containers:
+      - name: adguard-home
+        image: adguard/adguardhome:v0.107.77
+        ports:
+        - containerPort: 53
+          name: dns-udp
+          protocol: UDP
+        - containerPort: 53
+          name: dns-tcp
+          protocol: TCP
+        - containerPort: 3000
+          name: web
+          protocol: TCP
+        resources:
+          requests:
+            cpu: "250m"
+            memory: "128Mi"
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 3000
+          initialDelaySeconds: 30
+          periodSeconds: 5
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 3000
+          initialDelaySeconds: 60
+          periodSeconds: 10
+        securityContext:
+          readOnlyRootFilesystem: true
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+        volumeMounts:
+        - name: adguard-work-storage
+          mountPath: /opt/adguardhome/work
+        - name: adguard-conf-dir
+          mountPath: /opt/adguardhome/conf
+      automountServiceAccountToken: false
+      hostAliases:
+      - ip: "192.168.1.241"
+        hostnames:
+        - "adguard.viktor.cloud"
+      volumes:
+      - name: adguard-work-storage
+        persistentVolumeClaim:
+          claimName: adguard-home-work
+      - name: adguard-conf-dir
+        emptyDir: {}
+      - name: adguard-config-template
+        configMap:
+          name: adguard-config

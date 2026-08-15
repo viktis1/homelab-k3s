@@ -1,0 +1,14 @@
+# Adguard claim of persistent storage for logging
+apiVersion: v1
+kind: PersistentVolumeClaim
+
+metadata:
+  name: adguard-home-work
+spec:
+  accessModes:
+  - ReadWriteOnce
+  storageClassName: local-path
+  volumeName: adguard-fast-disk-work
+  resources:
+    requests:
+      storage: 1G

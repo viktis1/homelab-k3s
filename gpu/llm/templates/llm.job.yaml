@@ -1,0 +1,45 @@
+apiVersion: batch/v1
+kind: Job
+
+metadata:
+  generateName: llm-
+
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: llama
+          image: ghcr.io/ggml-org/llama.cpp:light-cuda-b10200
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: LLAMA_CACHE
+              value: /models
+          args:
+            - "--hf-repo"
+            - "ggml-org/Qwen3.5-0.8B-GGUF"
+            - "--hf-file"
+            - "Qwen3.5-0.8B-Q4_0.gguf"
+            - "--single-turn"
+            - "--prompt"
+            - "Explain why the sky is blue in three sentences."
+            - "--ctx-size"
+            - "4096"
+            - "--n-gpu-layers"
+            - "all"
+          resources:
+            requests:
+              cpu: "1"
+              memory: "2Gi"
+            limits:
+              nvidia.com/gpu: "1"
+          volumeMounts:
+            - name: models
+              mountPath: /models
+      volumes:
+        - name: models
+          persistentVolumeClaim:
+            claimName: models-llm
+
+

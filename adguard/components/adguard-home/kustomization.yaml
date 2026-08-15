@@ -1,0 +1,29 @@
+# Adguard-home setup
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+labels:
+- pairs:
+    app: adguard-home
+  includeSelectors: true
+  includeTemplates: true
+
+resources:
+- resources/adguard-home-work.persistentvolumeclaim.yaml
+- resources/adguard-home.service.yaml
+- resources/adguard-home.statefulset.yaml
+
+replicas:
+- name: adguard-home
+  count: 1
+
+images:
+- name: busybox
+  newTag: stable-musl
+- name: adguard/adguardhome
+  newTag: v0.107.77
+
+configMapGenerator:
+- name: adguard-config
+  files:
+  - AdGuardHome.yaml=config-template/AdGuardHome.yaml

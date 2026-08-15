@@ -1,0 +1,33 @@
+# Adguard load-balancer service for DNS
+apiVersion: v1
+kind: Service
+metadata:
+  name: adguard-home-dns
+spec:
+  type: LoadBalancer
+  externalTrafficPolicy: Local
+  ports:
+  - name: dns-udp
+    protocol: UDP
+    port: 53
+    targetPort: dns-udp
+  - name: dns-tcp
+    protocol: TCP
+    port: 53
+    targetPort: dns-tcp
+
+---
+
+# Adguard headless web-exposing service 
+apiVersion: v1
+kind: Service
+metadata:
+  name: adguard-home-web
+spec:
+  type: ClusterIP
+  clusterIP: None
+  ports:
+  - name: web
+    protocol: TCP
+    port: 3000
+    targetPort: web

@@ -1,0 +1,9 @@
+# Ignore personal and temporary files
+.vscode
+
+# Ignore forgejo and ghost... Just part of my learning curve in K8s
+forgejo/
+ghost/
+
+# Ignore secrets like API keys, passwords, and other sensitive information
+**/secrets/
