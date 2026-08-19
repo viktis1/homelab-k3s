@@ -1,5 +1,6 @@
 # Ignore personal and temporary files
 .vscode
+**.tar
 
 # Ignore forgejo and ghost... Just part of my learning curve in K8s
 forgejo/

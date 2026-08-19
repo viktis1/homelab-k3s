@@ -14,5 +14,12 @@ spec:
     spec:
       serviceAccountName: gpu-orchestrator
       containers:
-        - name: 
-          image: 
+        - name: gpu-orchestrator-image
+          image: gpu-orchestrator-image
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "1000m"
+              memory: "256Mi"

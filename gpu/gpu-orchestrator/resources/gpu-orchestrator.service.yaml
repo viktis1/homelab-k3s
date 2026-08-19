@@ -1,0 +1,16 @@
+# gpu-orchestrator service
+apiVersion: v1
+kind: Service
+
+metadata:
+  name: gpu-orchestrator
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: gpu-orchestrator
+
+  ports:
+  - name: server
+    port: 8000
+    targetPort: 8000
+    protocol: TCP

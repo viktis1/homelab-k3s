@@ -1,0 +1,17 @@
+# HTTPS ingress for gpu-orchestrator.viktor.cloud
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+
+metadata:
+  name: gpu-orchestrator.viktor.cloud
+spec:
+  entryPoints:
+  - websecure
+  routes:
+  - kind: Rule
+    match: Host(`gpu-orchestrator.viktor.cloud`)
+    services:
+    - name: gpu-orchestrator
+      port: server
+  tls:
+    secretName: gpu-orchestrator.viktor.cloud-tls

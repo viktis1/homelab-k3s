@@ -1,6 +1,4 @@
-from typing import Any
 from kubernetes import client
-from pathlib import Path
 import yaml
 
 
@@ -33,9 +31,4 @@ def build_llama_job(prompt:str, hf_repo:str, hf_file:str):
         "all",
     ]
 
-    # Create the job in the LLM namespace
-    api = client.BatchV1Api()
-    return api.create_namespaced_job(
-        namespace="llm",
-        body=job,
-    )
+    return job

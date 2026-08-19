@@ -1,0 +1,60 @@
+name: Build GPU Orchestrator image
+
+on:
+  push:
+    branches:
+      - main
+      - feature/gpu-orchestrator
+    paths:
+      - "gpu/gpu-orchestrator/**"
+      - "!gpu/gpu-orchestrator/kustomization.yaml"
+      - "!gpu/gpu-orchestrator/README.md"
+      - "!gpu/gpu-orchestrator/resources/**"
+      - ".github/workflows/gpu-orchestrator-image.yaml"
+
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: ./gpu/gpu-orchestrator
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/gpu-orchestrator:${{ github.sha }}
+      
+      - name: Update Kustomize image
+        run: |
+          sed -i \
+            "s|newTag: .*|newTag: \"${GITHUB_SHA}\"|" \
+            gpu/gpu-orchestrator/kustomization.yaml
+
+      - name: Commit Kustomize image
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add gpu/gpu-orchestrator/kustomization.yaml
+
+          if git diff --cached --quiet; then
+            echo "Kustomize image is already up to date"
+          else
+            git commit -m "chore: update gpu-orchestrator image to ${GITHUB_SHA}"
+            git push origin HEAD:${GITHUB_REF_NAME}
+          fi
