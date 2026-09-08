@@ -1,0 +1,14 @@
+# garmin--token claim of persistent storage
+apiVersion: v1
+kind: PersistentVolumeClaim
+
+metadata:
+  name: garmin-token
+spec:
+  accessModes:
+  - ReadWriteOnce
+  storageClassName: local-path
+  volumeName: garmin-fetch-data
+  resources:
+    requests:
+      storage: 124Mi

@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: garmin-influxdb
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: garmin-influxdb
+  template:
+    metadata:
+      labels:
+        app: garmin-influxdb
+    spec:
+      containers:
+        - name: influxdb
+          image: influxdb:1.11
+          ports:
+            - containerPort: 8086
+          env:
+            - name: INFLUXDB_DB
+              value: GarminStats
+            - name: INFLUXDB_DATA_INDEX_VERSION
+              value: tsi1
+          volumeMounts:
+            - name: garmin-data
+              mountPath: /var/lib/influxdb
+      volumes:
+        - name: garmin-data
+          persistentVolumeClaim:
+            claimName: garmin-data

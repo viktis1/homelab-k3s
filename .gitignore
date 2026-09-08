@@ -8,3 +8,4 @@ ghost/
 
 # Ignore secrets like API keys, passwords, and other sensitive information
 **/secrets/
+**secret**

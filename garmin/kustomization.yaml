@@ -1,0 +1,19 @@
+# Monitoring stack setup
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: garmin
+
+resources:
+- resources/garmin-data.persistentvolume.yaml
+- resources/garmin-fetch-data.persistentvolume.yaml
+- resources/garmin-token.persistentvolumeclaim.yaml
+- resources/influxdb.persistentvolumeclaim.yaml
+
+- resources/garmin.namespace.yaml
+
+- resources/influxdb.deployment.yaml
+- resources/influxdb.service.yaml
+- resources/garmin-fetch-data.deployment.yaml
+
+- resources/garmin.secret.yaml

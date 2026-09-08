@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: garmin-fetch-data
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: garmin-fetch-data
+  template:
+    metadata:
+      labels:
+        app: garmin-fetch-data
+    spec:
+      securityContext:
+        fsGroup: 1000
+      initContainers:
+        - name: wait-for-influxdb
+          image: curlimages/curl:latest
+          command:
+            - sh
+            - -c
+          args:
+            - |
+              until curl -f http://garmin-influxdb:8086/ping; do
+                echo "Waiting for InfluxDB..."
+                sleep 5
+              done
+              echo "InfluxDB is ready!"
+      containers:
+        - name: garmin-fetch
+          image: ghcr.io/arpanghosh8453/garmin-fetch-data:v0.3.0
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+          envFrom:
+            - secretRef:
+                name: garmin-secrets
+          env:
+            - name: INFLUXDB_HOST
+              value: garmin-influxdb
+            - name: INFLUXDB_PORT
+              value: "8086"
+            - name: INFLUXDB_DATABASE
+              value: GarminStats
+            - name: INFLUXDB_ENDPOINT_IS_HTTP
+              value: "True"
+            - name: INFLUXDB_VERSION
+              value: "1"
+          volumeMounts:
+            - name: garmin-token
+              mountPath: /home/appuser/.garminconnect
+      volumes:
+        - name: garmin-token
+          persistentVolumeClaim:
+            claimName: garmin-token

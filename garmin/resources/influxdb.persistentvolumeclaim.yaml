@@ -1,0 +1,14 @@
+# garmin-data claim of persistent storage
+apiVersion: v1
+kind: PersistentVolumeClaim
+
+metadata:
+  name: garmin-data
+spec:
+  accessModes:
+  - ReadWriteOnce
+  storageClassName: local-path
+  volumeName: garmin-data
+  resources:
+    requests:
+      storage: 5.8G

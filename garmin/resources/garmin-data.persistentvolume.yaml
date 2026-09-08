@@ -1,0 +1,24 @@
+# Persistent storage volume for garmin data collection
+apiVersion: v1
+kind: PersistentVolume
+
+metadata:
+  name: garmin-data
+spec:
+  capacity:
+    storage: 5.8G
+  volumeMode: Filesystem
+  accessModes:
+  - ReadWriteOnce
+  storageClassName: local-path
+  persistentVolumeReclaimPolicy: Retain
+  local:
+    path: /mnt/garmin/data/k3smnt
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - key: kubernetes.io/hostname
+          operator: In
+          values:
+          - k3sagent02
