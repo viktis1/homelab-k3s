@@ -18,6 +18,9 @@ spec:
       - name: server
         image: grafana/grafana-dev:13.1.0-25956141789
         imagePullPolicy: IfNotPresent
+        env:
+        - name: GF_PLUGINS_PREINSTALL
+          value: volkovlabs-echarts-panel
         ports:
         - name: server
           containerPort: 3000
