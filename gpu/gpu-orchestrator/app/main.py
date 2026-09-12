@@ -140,24 +140,24 @@ def get_job_result(job_type: str, job_name: str):
         namespace=namespace,
         label_selector=f"batch.kubernetes.io/job-name={job_name}",
     )
-
     if not pods.items:
         raise HTTPException(
             status_code=404,
             detail="Pod for Job not found",
         )
-
     pod = pods.items[0]
 
-    result = core_api.read_namespaced_pod_log(
+    response = core_api.read_namespaced_pod_log(
         name=pod.metadata.name,
         namespace=namespace,
         container=container,
+    _preload_content=False,
     )
+    result = response.data.decode("utf-8")
 
 
     if job_type == "llama":
         # Get the logs from the llama container
         return extract_llama_answer(log=result)
 
-    return result
+    # return result
