@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from fastapi.responses import PlainTextResponse
 
 # Scripts to build the GPU-needing jobs.
-from jobs.llamacpp import build_llama_job
+from jobs.llamacpp import build_llama_job, extract_llama_answer
 
 # Static files for the web interface.
 from pathlib import Path
@@ -154,5 +154,10 @@ def get_job_result(job_type: str, job_name: str):
         namespace=namespace,
         container=container,
     )
+
+
+    if job_type == "llama":
+        # Get the logs from the llama container
+        return extract_llama_answer(log=result)
 
     return result

@@ -32,3 +32,22 @@ def build_llama_job(prompt:str, hf_repo:str, hf_file:str):
     ]
 
     return job
+
+
+
+def extract_llama_answer(log: str | bytes) -> str:
+    # Kubernetes/client configuration may give us bytes
+    if isinstance(log, bytes):
+        log = log.decode("utf-8", errors="replace")
+
+    # Remove everything through the end of the thinking section
+    if "[End thinking]" in log:
+        log = log.rsplit("[End thinking]", 1)[1]
+
+    # Remove llama.cpp timing information and anything after it
+    if "[ Prompt:" in log:
+        log = log.split("[ Prompt:", 1)[0]
+
+    return log.strip()
+
+
