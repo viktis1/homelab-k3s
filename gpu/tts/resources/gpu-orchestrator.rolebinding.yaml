@@ -1,0 +1,16 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+
+metadata:
+  name: gpu-orchestrator
+  namespace: tts
+
+subjects:
+  - kind: ServiceAccount
+    name: gpu-orchestrator
+    namespace: gpu-orchestrator
+
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: gpu-orchestrator

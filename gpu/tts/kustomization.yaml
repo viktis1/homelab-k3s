@@ -1,0 +1,19 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: tts
+
+resources:
+  - resources/tts.namespace.yaml
+  - resources/tts-nvme.persistentvolume.yaml
+  - resources/tts-nvme.persistentvolumeclaim.yaml
+  - resources/gpu-orchestrator.rolebinding.yaml
+
+
+configMapGenerator:
+  - name: tts-job-template
+    files:
+      - templates/tts.job.yaml
+
+generatorOptions:
+  disableNameSuffixHash: true

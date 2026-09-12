@@ -1,0 +1,44 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  generateName: tts-
+
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      runtimeClassName: nvidia
+      containers:
+        - name: tts
+          image: ghcr.io/openttsgroup/voxcpm-open-tts:latest
+          imagePullPolicy: IfNotPresent
+          args:
+            - "python"
+            - "-m"
+            - "voxcpm.cli"
+            - "design"
+            - "--text"
+            - "Hello. This is VoxCPM2 running as a Kubernetes Job."
+            - "--output"
+            - "/tts-data/models/output/test.wav"
+            - "--hf-model-id"
+            - "openbmb/VoxCPM2"
+            - "--cache-dir"
+            - "/tts-data/models/VoxCPM2"
+            - "--device"
+            - "cuda"
+            - "--no-denoiser"
+          resources:
+            requests:
+              cpu: "1"
+              memory: "4Gi"
+            limits:
+              nvidia.com/gpu: "1"
+          volumeMounts:
+            - name: tts
+              mountPath: /tts-data
+      volumes:
+        - name: tts
+          persistentVolumeClaim:
+            claimName: models-tts
