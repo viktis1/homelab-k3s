@@ -6,10 +6,17 @@ GPU worksloads have been chosen to run as short-lived Kubernetes jobs, since req
 
 - `gpu-orchestrator`: FastAPI service for creating, tracking, and retrieving results from GPU Jobs. Interface is available at https://gpu-orchestrator.viktor.cloud/docs.
 - `llm`: Kubernetes resources and job templates for running llama.cpp inference with quantized GGUF models from Hugging Face.
+- `tts`: Kubernetes resources and job templates for running VoxCPM2 from my computer.
 
-The LLM job accepts a Hugging Face repository and model file, so the model can be selected per request rather than being fixed in the cluster configuration.
+There is currently no help in passing the right arguments to the gpu-orchestrator when creating the different jobs, so please use the examples below as a draft:
+JOB_TYPE: LLAMA
+    {"prompt": "Whatever you want to write here", 
+     "hf_repo": "bartowski/Qwen3.8-27B-GGUF"
+     "hf_file": "Qwen3.8-27B-Q5_K_S.gguf"}
+JOB_TYPE: TTS 
+    {"prompt": "Whatever you want read out loud"}
+    
 
 ## TODO
 
-- [ ] Improve monitoring of short-lived GPU Jobs with higher-frequency container metrics and DCGM GPU metrics on GPU-node.
-- [ ] Make the orchestrator/job interface generic before adding additional GPU workloads such as TTS.
+- [ ] Make the orchestrator/job interface better and easier-to-use (IT SHOULDN'T REQUIRE DOCS TO RUN THE WORKLOADS!!!).

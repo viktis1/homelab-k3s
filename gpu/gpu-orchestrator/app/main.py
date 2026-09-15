@@ -1,141 +1,70 @@
-from fastapi import FastAPI
+import time
+import uuid
+
+from fastapi import Body, FastAPI, HTTPException, Query
+from fastapi.responses import JSONResponse, Response
 from kubernetes import client, config
 from kubernetes.client.exceptions import ApiException
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
-from fastapi.responses import PlainTextResponse
+from pydantic import ValidationError
 
-# Scripts to build the GPU-needing jobs.
-from jobs.llamacpp import build_llama_job, extract_llama_answer
+from jobs import llamacpp, tts
 
-# Static files for the web interface.
-from pathlib import Path
-from fastapi.responses import FileResponse
 
 app = FastAPI()
 
-# Create the static directory path for serving the index.html file.
-STATIC_DIR = Path(__file__).parent / "static"
-@app.get("/", include_in_schema=False)
-def index():
-    return FileResponse(STATIC_DIR / "index.html")
-
-
 
 config.load_incluster_config()
+
 batch_api = client.BatchV1Api()
 core_api = client.CoreV1Api()
 
-# Health check endpoint
-@app.get("/health")
-def health():
-    return {"status": "ok"}
 
+# ---------------------------------------------------------
+# Job registry
+# ---------------------------------------------------------
 
-# --------------------------------------------------------------------------------------------
-# Define the different jobs that can be scheduled
 JOB_TYPES = {
-    "llama": {
-        "namespace": "llm",
-        "container": "llama",
-    },
+    module.JOB_TYPE: module
+    for module in (
+        llamacpp, # dictionary for this becomes {"llama": llamacpp},
+        tts, # dictionary for this becomes {"tts": tts},
+    )
 }
-# Llama.cpp job request
-class LlamaRequest(BaseModel):
-    prompt: str = "Explain why the sky is blue in three sentences."
-    hf_repo: str = "bartowski/Qwen3.8-27B-GGUF"
-    hf_file: str = "Qwen3.8-27B-Q5_K_S.gguf"
+
+# Register handler-specific FastAPI endpoints
+for handler in JOB_TYPES.values():
+    if hasattr(handler, "router"):
+        app.include_router(handler.router)
+
+def get_job_handler(job_type: str):
+    handler = JOB_TYPES.get(job_type)
+    return handler
 
 
-
-@app.post("/jobs/llama")
-def create_llama_job(request: LlamaRequest):
-    job = build_llama_job(
-        prompt=request.prompt,
-        hf_repo=request.hf_repo,
-        hf_file=request.hf_file
-    )
-
-    result = batch_api.create_namespaced_job(
-        namespace="llm",
-        body=job,
-    )
-
-    return {
-        "job": result.metadata.name,
-    }
+def get_job_status(job):
+    if job.status.succeeded:
+        return "completed"
+    if job.status.failed:
+        return "failed"
+    if job.status.active:
+        return "running"
+    return "pending"
 
 
-@app.get("/jobs/{job_type}/{job_name}")
-def get_job(job_type: str, job_name: str):
-
-    job_config = JOB_TYPES.get(job_type)
-    if job_config is None:
-        raise HTTPException(
-            status_code=404,
-            detail="Unknown job type",
-        )
-    namespace = job_config["namespace"]
-
+def get_job(job_name: str, namespace: str):
     try:
-        job = batch_api.read_namespaced_job(
+        return batch_api.read_namespaced_job(
             name=job_name,
             namespace=namespace,
         )
-
     except ApiException as exc:
-        if exc.status == 404:
-            raise HTTPException(
-                status_code=404,
-                detail="Job not found",
-            )
-
         raise HTTPException(
             status_code=500,
             detail=f"Failed to read Kubernetes Job: {exc.reason}",
         )
 
-    # Get job status
-    if job.status.succeeded:
-        status = "completed"
-    elif job.status.failed:
-        status = "failed"
-    elif job.status.active:
-        status = "running"
-    else:
-        status = "pending"
 
-    return {
-        "job": job.metadata.name,
-        "status": status,
-    }
-
-
-@app.get("/jobs/{job_type}/{job_name}/result", response_class=PlainTextResponse)
-def get_job_result(job_type: str, job_name: str):
-
-    job_config = JOB_TYPES.get(job_type)
-
-    if job_config is None:
-        raise HTTPException(
-            status_code=404,
-            detail="Unknown job type",
-        )
-
-    namespace = job_config["namespace"]
-    container = job_config["container"]
-
-    job = batch_api.read_namespaced_job(
-        name=job_name,
-        namespace=namespace,
-    )
-
-    if not job.status.succeeded:
-        raise HTTPException(
-            status_code=409,
-            detail="Job has not completed successfully",
-        )
-
+def get_job_pod(job_name: str, namespace: str):
     pods = core_api.list_namespaced_pod(
         namespace=namespace,
         label_selector=f"batch.kubernetes.io/job-name={job_name}",
@@ -145,19 +74,100 @@ def get_job_result(job_type: str, job_name: str):
             status_code=404,
             detail="Pod for Job not found",
         )
-    pod = pods.items[0]
+    return pods.items[0]
 
-    response = core_api.read_namespaced_pod_log(
-        name=pod.metadata.name,
-        namespace=namespace,
-        container=container,
-    _preload_content=False,
+
+# ---------------------------------------------------------
+# Endpoint 1: Start any GPU job
+# ---------------------------------------------------------
+
+@app.post("/jobs/{job_type}", status_code=202)
+def start_job(
+    job_type: str,
+    payload: dict = Body(...),
+):
+    handler = get_job_handler(job_type)
+
+    try:
+        request = handler.Request.model_validate(payload)
+    except ValidationError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail=exc.errors(),
+        )
+
+    job_name = f"{job_type}-{uuid.uuid4().hex[:12]}"
+
+    job = handler.build_job(
+        core_api=core_api,
+        request=request,
+        job_name=job_name,
     )
-    result = response.data.decode("utf-8")
+
+    # main.py owns the Kubernetes Job identity.
+    job.setdefault("metadata", {})
+    job["metadata"]["name"] = job_name
+    job["metadata"].pop("generateName", None)
+
+    try:
+        batch_api.create_namespaced_job(
+            namespace=handler.NAMESPACE,
+            body=job,
+        )
+    except ApiException as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to create Kubernetes Job: {exc.reason}",
+        )
+
+    return {
+        "job_type": job_type,
+        "job": job_name,
+        "status": "submitted",
+        "result_url": f"/jobs/{job_type}/{job_name}",
+    }
 
 
-    if job_type == "llama":
-        # Get the logs from the llama container
-        return extract_llama_answer(log=result)
+# ---------------------------------------------------------
+# Endpoint 2: Get status or result
+# ---------------------------------------------------------
 
-    # return result
+@app.get("/jobs/{job_type}/{job_name}")
+def get_result(
+    job_type: str,
+    job_name: str,
+):
+    handler = get_job_handler(job_type)
+
+    job = get_job(
+        job_name=job_name,
+        namespace=handler.NAMESPACE,
+    )
+
+    status = get_job_status(job)
+
+    if status == "completed":
+        pod = get_job_pod(
+            job_name=job_name,
+            namespace=handler.NAMESPACE,
+        )
+
+        return handler.read_result(
+            core_api=core_api,
+            pod=pod,
+            job_name=job_name,
+        )
+
+    if status == "failed":
+        status_code = 500
+    else:
+        status_code = 202
+
+    return JSONResponse(
+        status_code=status_code,
+        content={
+            "job_type": job_type,
+            "job": job_name,
+            "status": status,
+        },
+    )

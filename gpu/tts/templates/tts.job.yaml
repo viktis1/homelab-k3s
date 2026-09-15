@@ -1,0 +1,72 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  generateName: tts-
+
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      runtimeClassName: nvidia
+      containers:
+        - name: tts
+          image: ghcr.io/viktis1/voxcpm-open-tts:sha-8a9ed23
+
+          env:
+            - name: TTS_TEXT
+              value: "Hello. This is VoxCPM2 running as a Kubernetes Job."
+            - name: OUTPUT_FILE
+              value: "/tts-data/models/output/test.wav"
+            - name: CALLBACK_URL
+              value: "http://gpu-orchestrator.gpu-orchestrator.pve.viktor.cloud:8000/tts/result"
+            - name: REQUEST_ID
+              value: "abc123"
+            - name: HF_MODEL_ID
+              value: "openbmb/VoxCPM2"
+            - name: MODEL_CACHE
+              value: "/tts-data/models/huggingface"
+
+          command:
+            - /bin/sh
+            - -c
+
+          args:
+            - |
+              set -e
+
+              python -m voxcpm.cli design \
+                --text "$TTS_TEXT" \
+                --output "$OUTPUT_FILE" \
+                --hf-model-id "$HF_MODEL_ID" \
+                --cache-dir "$MODEL_CACHE" \
+                --device cuda \
+                --no-denoiser
+
+              python - <<'PY'
+              import os
+              import requests
+              output_file = os.environ["OUTPUT_FILE"]
+              with open(output_file, "rb") as f:
+                  response = requests.post(
+                      os.environ["CALLBACK_URL"],
+                      files={"file": ("output.wav", f, "audio/wav")},
+                      data={"request_id": os.environ["REQUEST_ID"]},
+                      timeout=120,
+                  )
+              response.raise_for_status()
+              PY
+          resources:
+            requests:
+              cpu: "1"
+              memory: "12Gi" # This actually uses almost 20GB RAM, because parameters are not loaded into VRAM directly... Hoping the upstream model fixes this eventually...
+            limits:
+              memory: "18Gi"
+              nvidia.com/gpu: "1"
+          volumeMounts:
+            - name: tts
+              mountPath: /tts-data
+      volumes:
+        - name: tts
+          persistentVolumeClaim:
+            claimName: models-tts

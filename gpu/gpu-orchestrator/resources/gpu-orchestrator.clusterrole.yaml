@@ -7,6 +7,7 @@ rules:
     resources: ["configmaps"]
     resourceNames: 
     - llm-job-template
+    - tts-job-template
     verbs: ["get"]
   - apiGroups: ["batch"]
     resources: ["jobs"]

@@ -1,0 +1,14 @@
+# llama.cpp-omni claim of persistent storage for storing tts model files
+apiVersion: v1
+kind: PersistentVolumeClaim
+
+metadata:
+  name: models-tts
+spec:
+  accessModes:
+  - ReadWriteOnce
+  storageClassName: local-path
+  volumeName: tts-nvme-models
+  resources:
+    requests:
+      storage: 20Gi

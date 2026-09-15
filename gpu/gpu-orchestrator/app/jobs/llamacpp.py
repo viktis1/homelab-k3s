@@ -1,53 +1,84 @@
 from kubernetes import client
+from pydantic import BaseModel
+from fastapi.responses import PlainTextResponse
 import yaml
 
 
+JOB_TYPE = "llama"
+NAMESPACE = "llm"
 
-def build_llama_job(prompt:str, hf_repo:str, hf_file:str):
-    # Get the job template from the LLM namespace
-    core_api = client.CoreV1Api()
+
+class Request(BaseModel):
+    prompt: str = "Explain why the sky is blue in three sentences."
+    hf_repo: str = "bartowski/Qwen3.8-27B-GGUF"
+    hf_file: str = "Qwen3.8-27B-Q5_K_S.gguf"
+
+
+def build_job(
+    core_api: client.CoreV1Api,
+    request: Request,
+    job_name: str,
+):
+    # Get the llama.cpp job template
     config_map = core_api.read_namespaced_config_map(
         name="llm-job-template",
-        namespace="llm",
+        namespace=NAMESPACE,
     )
-    job = yaml.safe_load(config_map.data["llm.job.yaml"])
-
-    # Get the container spec for the llama-cpp container
+    job = yaml.safe_load(
+        config_map.data["llm.job.yaml"]
+    )
+    # Alter the job spec to include the prompt and model
     container = next(
-        c for c in job["spec"]["template"]["spec"]["containers"]
-        if c.get("name") == "llama"
+        container
+        for container in job["spec"]["template"]["spec"]["containers"]
+        if container.get("name") == "llama"
     )
+
     container["args"] = [
         "--hf-repo",
-        hf_repo,
+        request.hf_repo,
         "--hf-file",
-        hf_file,
-        "--single-turn",
+        request.hf_file,
         "--prompt",
-        prompt,
-        "--ctx-size",
-        "4096",
-        "--n-gpu-layers",
-        "all",
+        request.prompt,
+        "--single-turn",
     ]
 
     return job
 
 
+def read_result(
+    core_api: client.CoreV1Api,
+    pod,
+    job_name: str,
+):
+    log = core_api.read_namespaced_pod_log(
+        name=pod.metadata.name,
+        namespace=NAMESPACE,
+        container="llama",
+    )
+
+    answer = extract_llama_answer(log)
+
+    return PlainTextResponse(answer)
+
+
+
+
+
+#----------------------------------------------------------------------------
+#------------------------ Helper functions ----------------------------------
+#----------------------------------------------------------------------------
+
 
 def extract_llama_answer(log: str | bytes) -> str:
-    # Kubernetes/client configuration may give us bytes
     if isinstance(log, bytes):
         log = log.decode("utf-8", errors="replace")
 
-    # Remove everything through the end of the thinking section
     if "[End thinking]" in log:
         log = log.rsplit("[End thinking]", 1)[1]
 
-    # Remove llama.cpp timing information and anything after it
     if "[ Prompt:" in log:
         log = log.split("[ Prompt:", 1)[0]
 
     return log.strip()
-
-
