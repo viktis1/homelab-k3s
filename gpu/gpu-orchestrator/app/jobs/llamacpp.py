@@ -2,6 +2,7 @@ from kubernetes import client
 from pydantic import BaseModel
 from fastapi.responses import PlainTextResponse
 import yaml
+import codecs
 
 
 JOB_TYPE = "llama"
@@ -74,6 +75,11 @@ def read_result(
 def extract_llama_answer(log: str | bytes) -> str:
     if isinstance(log, bytes):
         log = log.decode("utf-8", errors="replace")
+    
+    log = codecs.escape_decode(
+        log.encode("utf-8")
+    )[0].decode("utf-8")
+
 
     if "[End thinking]" in log:
         log = log.rsplit("[End thinking]", 1)[1]

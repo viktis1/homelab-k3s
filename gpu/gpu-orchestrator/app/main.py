@@ -2,7 +2,7 @@ import time
 import uuid
 
 from fastapi import Body, FastAPI, HTTPException, Query
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, Response
 from kubernetes import client, config
 from kubernetes.client.exceptions import ApiException
 from pydantic import ValidationError
@@ -171,3 +171,17 @@ def get_result(
             "status": status,
         },
     )
+
+
+
+@app.get("/")
+def index():
+    return FileResponse("static/index.html")
+
+
+@app.get("/job-types")
+def job_types():
+    return {
+        name: handler.Request().model_dump()
+        for name, handler in JOB_TYPES.items()
+    }

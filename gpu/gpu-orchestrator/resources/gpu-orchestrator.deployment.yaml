@@ -16,6 +16,7 @@ spec:
       containers:
         - name: gpu-orchestrator-image
           image: gpu-orchestrator-image
+          imagePullPolicy: Always
           resources:
             requests:
               cpu: "50m"

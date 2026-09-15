@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html>
+<body>
+
+<h1>GPU Orchestrator</h1>
+<div id="jobs"></div>
+
+<h2>Jobs</h2>
+<div id="runningJobs"></div>
+
+<dialog id="dialog">
+    <h2 id="title"></h2>
+    <form id="form">
+        <div id="fields"></div><br>
+        <button type="submit">Start job</button>
+        <button type="button" onclick="dialog.close()">Cancel</button>
+    </form>
+</dialog>
+
+<pre id="result"></pre>
+
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify/dist/purify.min.js"></script>
+
+<script>
+let jobType;
+
+const jobsDiv = document.getElementById("jobs");
+const runningJobs = document.getElementById("runningJobs");
+const dialog = document.getElementById("dialog");
+const form = document.getElementById("form");
+const fields = document.getElementById("fields");
+const title = document.getElementById("title");
+const result = document.getElementById("result");
+
+fetch("/job-types").then(r => r.json()).then(jobs => {
+    for (const [name, defaults] of Object.entries(jobs)) {
+        const button = document.createElement("button");
+        button.textContent = name;
+        button.onclick = () => openJob(name, defaults);
+        jobsDiv.appendChild(button);
+    }
+});
+
+function openJob(name, defaults) {
+    jobType = name;
+    title.textContent = name;
+    fields.innerHTML = "";
+    for (const [key, value] of Object.entries(defaults))
+        fields.innerHTML += `<label>${key}</label><br><textarea name="${key}">${value}</textarea><br>`;
+    dialog.showModal();
+}
+
+form.onsubmit = async event => {
+    event.preventDefault();
+
+    const response = await fetch(`/jobs/${jobType}`, {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(Object.fromEntries(new FormData(form)))
+    });
+
+    const job = await response.json();
+
+    if (!response.ok) {
+        result.textContent = JSON.stringify(job);
+        return;
+    }
+
+    trackJob(job);
+    dialog.close();
+};
+
+function trackJob(job) {
+    const row = document.createElement("div");
+    row.innerHTML = `<b>${job.job}</b><span> submitted </span><div></div>`;
+    runningJobs.prepend(row);
+
+    const status = row.children[1];
+    const output = row.children[2];
+
+    const timer = setInterval(async () => {
+        const response = await fetch(job.result_url);
+
+        if (response.status === 202) {
+            status.textContent = ` ${(await response.json()).status} `;
+            return;
+        }
+
+        clearInterval(timer);
+
+        if (!response.ok) {
+            status.textContent = " failed ";
+            output.textContent = await response.text();
+            return;
+        }
+
+        status.textContent = " completed ";
+
+        if ((response.headers.get("content-type") || "").includes("audio")) {
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(await response.blob());
+            link.download = `${job.job}.wav`;
+            link.textContent = "Download WAV";
+            output.appendChild(link);
+        } else {
+            output.innerHTML = DOMPurify.sanitize(marked.parse(await response.text()));
+        }
+    }, 2000);
+}
+</script>
+
+</body>
+</html>
