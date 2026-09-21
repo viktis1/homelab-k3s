@@ -98,7 +98,7 @@ gcloud storage buckets add-iam-policy-binding gs://$BUCKET \
 
 ## Kubernetes credentials
 
-The worker runs outside GCP, so this simple setup uses a GCP service-account JSON key. From the repository root, create the key inside the `cloud-ingest` component:
+The worker runs outside GCP, so this simple setup uses a GCP service-account JSON key. From the repository root, create the key.
 ```bash
 gcloud iam service-accounts keys create \
   create-ringtone/components/cloud-ingest/resources/gcp-ingest-secret.json \
