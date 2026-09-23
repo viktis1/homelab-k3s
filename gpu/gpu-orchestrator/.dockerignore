@@ -1,7 +1,2 @@
-README.md
-kustomization.yaml
-resources/
-
 __pycache__/
 *.pyc
-.venv/
