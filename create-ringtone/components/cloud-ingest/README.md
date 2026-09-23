@@ -64,7 +64,8 @@ gcloud pubsub topics create $PUBSUB
 ### Create the pull subscription
 ```bash
 gcloud pubsub subscriptions create $PUBSUB-ingest \
-  --topic=$PUBSUB
+  --topic=$PUBSUB \
+  --message-retention-duration=31d
 ```
 
 ### Notify Pub/Sub when an upload finishes

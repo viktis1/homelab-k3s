@@ -1,0 +1,60 @@
+name: Build Cloud Ingest image for create-ringtone
+
+on:
+  push:
+    branches:
+      - main
+      - create-ringtone
+    paths:
+      - "create-ringtone/components/cloud-ingest/**"
+      - "!create-ringtone/components/cloud-ingest/kustomization.yaml"
+      - "!create-ringtone/components/cloud-ingest/README.md"
+      - "!create-ringtone/components/cloud-ingest/resources/**"
+      - ".github/workflows/create-ringtone-cloud-ingest-image.yaml"
+
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: ./create-ringtone/components/cloud-ingest
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/create-ringtone-cloud-ingest:${{ github.sha }}
+      
+      - name: Update Kustomize image
+        run: |
+          sed -i \
+            "s|newTag: .*|newTag: \"${GITHUB_SHA}\"|" \
+            create-ringtone/components/cloud-ingest/kustomization.yaml
+
+      - name: Commit Kustomize image
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add create-ringtone/components/cloud-ingest/kustomization.yaml
+
+          if git diff --cached --quiet; then
+            echo "Kustomize image is already up to date"
+          else
+            git commit -m "chore: update create-ringtone-cloud-ingest image to ${GITHUB_SHA}"
+            git push origin HEAD:${GITHUB_REF_NAME}
+          fi
