@@ -4,11 +4,6 @@ kind: Kustomization
 resources:
   - resources/cloud-ingest.deployment.yaml
 
-images:
-  - name: cloud-ingest-image
-    newName: ghcr.io/viktis1/create-ringtone-cloud-ingest
-    newTag: "e3339afa1df27e1c91de875aed42d20334b4306f"
-
 secretGenerator:
 - name: gcp-sa-credentials
   files:

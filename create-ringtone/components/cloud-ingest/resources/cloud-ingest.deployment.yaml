@@ -17,6 +17,8 @@ spec:
         - name: cloud-ingest
           image: cloud-ingest-image
           env:
+            - name: PYTHONUNBUFFERED
+              value: "1"
             - name: GCP_PROJECT_ID
               value: ringtone-k8s
             - name: PUBSUB_SUBSCRIPTION

@@ -14,8 +14,12 @@ resources:
 - resources/create-ringtone.namespace.yaml
 - resources/create-ringtone-rustfs.pv.yaml
 - components/object-storage
+- components/cloud-ingest
 
 
 images:
 - name: rustfs
   newTag: 1.0.0
+- name: cloud-ingest-image
+  newName: ghcr.io/viktis1/create-ringtone-cloud-ingest
+  newTag: "e3339afa1df27e1c91de875aed42d20334b4306f"

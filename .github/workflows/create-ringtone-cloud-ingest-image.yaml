@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - create-ringtone
     paths:
       - "create-ringtone/components/cloud-ingest/**"
       - "!create-ringtone/components/cloud-ingest/kustomization.yaml"
@@ -43,14 +42,14 @@ jobs:
         run: |
           sed -i \
             "s|newTag: .*|newTag: \"${GITHUB_SHA}\"|" \
-            create-ringtone/components/cloud-ingest/kustomization.yaml
+            create-ringtone/kustomization.yaml
 
       - name: Commit Kustomize image
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git add create-ringtone/components/cloud-ingest/kustomization.yaml
+          git add create-ringtone/kustomization.yaml
 
           if git diff --cached --quiet; then
             echo "Kustomize image is already up to date"
