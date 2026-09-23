@@ -7,7 +7,7 @@ resources:
 images:
   - name: cloud-ingest-image
     newName: ghcr.io/viktis1/create-ringtone-cloud-ingest
-    newTag: "cdeb24ef9eaeeff50cdc664df31ef4e46b2fd53a"
+    newTag: "e3339afa1df27e1c91de875aed42d20334b4306f"
 
 secretGenerator:
 - name: gcp-sa-credentials
