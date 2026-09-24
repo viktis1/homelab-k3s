@@ -39,7 +39,7 @@ spec:
                   name: rustfs
                   key: secret-key
             - name: GOOGLE_APPLICATION_CREDENTIALS
-              value: /var/run/gcp/gcp-ingest-secret.json
+              value: /etc/workload-identity/credential-configuration.json
           resources:
             requests:
               cpu: 50m
@@ -48,14 +48,21 @@ spec:
               cpu: "1000m"
               memory: "1024Mi"
           volumeMounts:
-            - name: gcp-credentials
+            - name: gcp-token
               readOnly: true
-              mountPath: /var/run/gcp/gcp-ingest-secret.json
-              subPath: gcp-ingest-secret.json
+              mountPath: /var/run/service-account
+            - name: gcp-credentials
+              mountPath: /etc/workload-identity
+              readOnly: true
+      serviceAccountName: cloud-ingest
       volumes:
+        - name: gcp-token
+          projected:
+            sources:
+              - serviceAccountToken:
+                  audience: https://iam.googleapis.com/projects/ringtone-k8s/locations/global/workloadIdentityPools/homelab/providers/k3s
+                  expirationSeconds: 3600
+                  path: token
         - name: gcp-credentials
-          secret:
-            secretName: gcp-sa-credentials
-            items:
-              - key: gcp-ingest-secret.json
-                path: gcp-ingest-secret.json
+          configMap:
+            name: gcp-workload-identity
