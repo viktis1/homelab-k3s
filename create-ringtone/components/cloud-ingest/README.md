@@ -51,7 +51,10 @@ gcloud config set project $PROJECT_ID
 gcloud services enable \
   storage.googleapis.com \
   pubsub.googleapis.com \
-  iam.googleapis.com
+  iam.googleapis.com \
+  iamcredentials.googleapis.com \
+  sts.googleapis.com \
+  cloudresourcemanager.googleapis.com
 ```
 
 ### Create the upload bucket
@@ -89,11 +92,11 @@ gcloud iam service-accounts create $GSA
 ### Give the GSA access to Pub/Sub and GCS
 ```bash
 gcloud pubsub subscriptions add-iam-policy-binding $PUBSUB-ingest \
-  --member="serviceAccount:$K8SSA@$PROJECT_ID.iam.gserviceaccount.com" \
+  --member="serviceAccount:$GSA@$PROJECT_ID.iam.gserviceaccount.com" \
   --role="roles/pubsub.subscriber"
 
 gcloud storage buckets add-iam-policy-binding gs://$BUCKET \
-  --member="serviceAccount:$K8SSA@$PROJECT_ID.iam.gserviceaccount.com" \
+  --member="serviceAccount:$GSA@$PROJECT_ID.iam.gserviceaccount.com" \
   --role="roles/storage.objectViewer"
 ```
 
@@ -177,3 +180,7 @@ gcloud iam workload-identity-pools create-cred-config \
 ```
 
 `credential-configuration.json` contains no private key and does not need to be stored as a Secret. That is the advantage of WIF.
+
+# Links
+https://docs.cloud.google.com/iam/docs/workload-identity-federation-with-kubernetes
+https://medium.com/israeli-tech-radar/oauth-2-0-and-openid-connect-for-dummies-6fa6e995d6d5

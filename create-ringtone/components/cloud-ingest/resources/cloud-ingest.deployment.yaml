@@ -19,7 +19,7 @@ spec:
           env:
             - name: PYTHONUNBUFFERED
               value: "1"
-            - name: GCP_PROJECT_ID
+            - name: GOOGLE_CLOUD_PROJECT
               value: ringtone-k8s
             - name: PUBSUB_SUBSCRIPTION
               value: voice-upload-ingest
@@ -60,7 +60,7 @@ spec:
           projected:
             sources:
               - serviceAccountToken:
-                  audience: https://iam.googleapis.com/projects/ringtone-k8s/locations/global/workloadIdentityPools/homelab/providers/k3s
+                  audience: https://iam.googleapis.com/projects/1094530592033/locations/global/workloadIdentityPools/homelab/providers/k3s-homelab
                   expirationSeconds: 3600
                   path: token
         - name: gcp-credentials

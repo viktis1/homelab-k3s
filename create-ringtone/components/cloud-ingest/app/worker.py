@@ -4,7 +4,7 @@ import boto3
 from botocore.config import Config
 from google.cloud import pubsub_v1, storage
 
-PROJECT = os.environ["GCP_PROJECT_ID"]
+PROJECT = os.environ["GOOGLE_CLOUD_PROJECT"]
 SUBSCRIPTION = os.environ["PUBSUB_SUBSCRIPTION"]
 RUSTFS_BUCKET = os.environ["RUSTFS_BUCKET"]
 
