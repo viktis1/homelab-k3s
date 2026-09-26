@@ -15,12 +15,17 @@ resources:
 - resources/create-ringtone-rustfs.pv.yaml
 - components/object-storage
 - components/cloud-ingest
+- components/cloudflare
 
 
 images:
 - name: rustfs
   newTag: 1.0.0
+
 - name: cloud-ingest-image
   newName: ghcr.io/viktis1/create-ringtone-cloud-ingest
   newTag: "5405d1e845bb514d5892aef232d3af2db5dfac95"
-  
+
+- name: cloudflared-image
+  newName: cloudflare/cloudflared
+  newTag: "latest"

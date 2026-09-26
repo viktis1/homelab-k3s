@@ -184,3 +184,4 @@ gcloud iam workload-identity-pools create-cred-config \
 # Links
 https://docs.cloud.google.com/iam/docs/workload-identity-federation-with-kubernetes
 https://medium.com/israeli-tech-radar/oauth-2-0-and-openid-connect-for-dummies-6fa6e995d6d5
+https://www.jscape.com/glossary/outbound-connection
