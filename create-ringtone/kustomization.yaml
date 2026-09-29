@@ -21,4 +21,4 @@ images:
 
 - name: create-ringtone-orchestrator-image
   newName: ghcr.io/viktis1/create-ringtone-orchestrator
-  newTag: "c7154f83df7a969f116aa62a01f7415f84652376"
+  newTag: "05019a075cac4e351048f3272658025ad2e845e0"
