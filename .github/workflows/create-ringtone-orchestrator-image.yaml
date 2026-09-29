@@ -17,6 +17,7 @@ on:
 concurrency:
   group: kustomize-image-updates
   cancel-in-progress: false
+  queue: max
 
 jobs:
   build:
@@ -43,6 +44,11 @@ jobs:
           push: true
           tags: ghcr.io/${{ github.repository_owner }}/create-ringtone-orchestrator:${{ github.sha }}
 
+      - name: Sync branch
+        run: |
+          git fetch origin "${GITHUB_REF_NAME}"
+          git checkout -B "${GITHUB_REF_NAME}" "origin/${GITHUB_REF_NAME}"
+          
       - name: Update Kustomize image
         run: |
           grep -q -- "- name: create-ringtone-orchestrator-image" create-ringtone/kustomization.yaml
