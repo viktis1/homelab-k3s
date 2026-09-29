@@ -15,4 +15,4 @@ resources:
 images:
   - name: gpu-orchestrator-image
     newName: ghcr.io/viktis1/gpu-orchestrator
-    newTag: "01b900f9eb5369c0bd7c933dca979ddbb454fcbf"
+    newTag: "6f29a9dae4dea1e4fdeb7887a7606d6b3eb08eb6"
