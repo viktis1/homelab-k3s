@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: create-ringtone-orchestrator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: create-ringtone-orchestrator
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: create-ringtone-orchestrator
+    spec:
+      containers:
+        - name: create-ringtone-orchestrator-image
+          image: create-ringtone-orchestrator-image
+          imagePullPolicy: Always
+          env:
+            - name: RUSTFS_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: rustfs
+                  key: access-key
+            - name: RUSTFS_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: rustfs
+                  key: secret-key
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "1000m"
+              memory: "256Mi"

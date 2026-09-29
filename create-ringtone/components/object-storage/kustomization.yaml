@@ -1,0 +1,8 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - resources/rustfs.secret.yaml
+  - resources/rustfs.pvc.yaml
+  - resources/rustfs.deployment.yaml
+  - resources/rustfs.service.yaml

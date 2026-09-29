@@ -1,0 +1,62 @@
+name: Build Creation Pipeline image for create-ringtone
+
+on:
+  push:
+    branches:
+      - main
+      - create-ringtone
+    paths:
+      - "create-ringtone/components/orchestrator/**"
+      - "!create-ringtone/components/orchestrator/kustomization.yaml"
+      - "!create-ringtone/components/orchestrator/README.md"
+      - "!create-ringtone/components/orchestrator/resources/**"
+      - ".github/workflows/create-ringtone-orchestrator-image.yaml"
+
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: ./create-ringtone/components/orchestrator
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/create-ringtone-orchestrator:${{ github.sha }}
+
+      - name: Update Kustomize image
+        run: |
+          grep -q -- "- name: create-ringtone-orchestrator-image" create-ringtone/kustomization.yaml
+
+          sed -i \
+            '/- name: create-ringtone-orchestrator-image/,/newTag:/ s|newTag: .*|newTag: "'"${GITHUB_SHA}"'"|' \
+            create-ringtone/kustomization.yaml
+
+      - name: Commit Kustomize image
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add create-ringtone/kustomization.yaml
+
+          if git diff --cached --quiet; then
+            echo "Kustomize image is already up to date"
+          else
+            git commit -m "chore: update create-ringtone-orchestrator image to ${GITHUB_SHA}"
+            git push origin HEAD:${GITHUB_REF_NAME}
+          fi

@@ -1,0 +1,24 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: create-ringtone
+
+resources:
+- resources/create-ringtone.namespace.yaml
+- resources/create-ringtone-rustfs.pv.yaml
+- components/object-storage
+- components/cloud-ingest
+- components/orchestrator
+
+
+images:
+- name: rustfs
+  newTag: 1.0.0
+
+- name: cloud-ingest-image
+  newName: ghcr.io/viktis1/create-ringtone-cloud-ingest
+  newTag: "5405d1e845bb514d5892aef232d3af2db5dfac95"
+
+- name: create-ringtone-orchestrator-image
+  newName: ghcr.io/viktis1/create-ringtone-orchestrator
+  newTag: "c7154f83df7a969f116aa62a01f7415f84652376"

@@ -16,8 +16,8 @@ RESULT_DIR = Path("/results")
 
 
 class Request(BaseModel):
-    prompt: str = ("This is a sentence read out loud by a text-to-speech model."
-    )
+    prompt: str = "This is a sentence read out loud by a text-to-speech model."
+    reference_audio_url: str | None = None
 
 
 def build_job(
@@ -53,6 +53,7 @@ def build_job(
         "OUTPUT_FILE": f"/tts-data/models/output/{job_name}.wav",
         "REQUEST_ID": job_name,
         "CALLBACK_URL": callback_url,
+        "REFERENCE_AUDIO_URL": request.reference_audio_url or "", # Empty string means "no voice cloning"
     }
     # Update existing env vars without replacing the entire env list
     for env in container.get("env", []):

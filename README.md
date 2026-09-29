@@ -26,9 +26,10 @@ The repository contains manifests for the main services supporting the cluster:
 - `monitoring`: Prometheus and Grafana for monitoring and visualization.
 
 
-## Applications
-- `adguard`: DNS-level ad blocking for the local network. Mid results...
+## self-developed Applications
 - `gpu/gpu_orchestrator`: small CPU-only service responsible for creating GPU Kubernetes Jobs.
 - `gpu/llm`: GPU jobs that can run selected models from Hugging Face.
+- `gpu/tts`: GPU jobs that can run VoxCPM2 for TTS.
+- `create-ringtone`: Orchestrator that establishes an outbound connection to GCS so the ringtones can be created outside the LAN.  
 
-GPU workloads are intentionally treated as batch jobs rather than permanently running inference services. The orchestrator provides a common entry point for submitting these jobs, with the intention of supporting additional GPU workloads such as TTS in the future.
+There are interesting docs in all the self-developed applications. The reader is encouraged to go into the folders and check those out for more technical descriptions of how the apps work.

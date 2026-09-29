@@ -16,6 +16,8 @@ spec:
           env:
             - name: TTS_TEXT
               value: "Hello. This is VoxCPM2 running as a Kubernetes Job."
+            - name: REFERENCE_AUDIO_URL
+              value: ""
             - name: OUTPUT_FILE
               value: "/tts-data/models/output/test.wav"
             - name: CALLBACK_URL
@@ -35,27 +37,46 @@ spec:
             - |
               set -e
 
-              python -m voxcpm.cli design \
-                --text "$TTS_TEXT" \
-                --output "$OUTPUT_FILE" \
-                --hf-model-id "$HF_MODEL_ID" \
-                --cache-dir "$MODEL_CACHE" \
-                --device cuda \
-                --no-denoiser
-
               python - <<'PY'
               import os
+              import subprocess
+              from pathlib import Path
+              from urllib.parse import urlparse
               import requests
-              output_file = os.environ["OUTPUT_FILE"]
-              with open(output_file, "rb") as f:
-                  response = requests.post(
-                      os.environ["CALLBACK_URL"],
-                      files={"file": ("output.wav", f, "audio/wav")},
-                      data={"request_id": os.environ["REQUEST_ID"]},
-                      timeout=120,
-                  )
+
+              text = os.environ["TTS_TEXT"]
+              reference_url = os.environ.get("REFERENCE_AUDIO_URL", "").strip()
+              output_file = Path(os.environ["OUTPUT_FILE"])
+              callback_url = os.environ["CALLBACK_URL"]
+              hf_model_id = os.environ["HF_MODEL_ID"]
+              model_cache = os.environ["MODEL_CACHE"]
+
+              if reference_url:
+                  response = requests.get(reference_url, stream=True, timeout=(10, 120))
+                  response.raise_for_status()
+                  suffix = Path(urlparse(reference_url).path).suffix.lower()
+                  reference_file = Path("/work") / f"reference{suffix}"
+                  with reference_file.open("wb") as f:
+                      for chunk in response.iter_content(chunk_size=1024 * 1024):
+                          if chunk:
+                              f.write(chunk)
+                  # Clone
+                  command = ["python", "-m", "voxcpm.cli", "clone", "--text", text, "--reference-audio", str(reference_file)]
+              else:
+                  # No cloning
+                  command = ["python", "-m", "voxcpm.cli", "design", "--text", text]
+              command += ["--output", str(output_file),
+                          "--hf-model-id", hf_model_id,
+                          "--cache-dir", model_cache,
+                          "--device", "cuda", "--no-denoiser"]
+              
+              subprocess.run(command, check=True)
+              with output_file.open("rb") as f:
+                  response = requests.post(callback_url, data=f, headers={"Content-Type": "audio/wav"}, timeout=(10, 120))
               response.raise_for_status()
               PY
+
+
           resources:
             requests:
               cpu: "1"
@@ -66,7 +87,13 @@ spec:
           volumeMounts:
             - name: tts
               mountPath: /tts-data
+            - name: work
+              mountPath: /work
       volumes:
         - name: tts
           persistentVolumeClaim:
             claimName: models-tts
+        - name: work
+          emptyDir:
+            medium: Memory
+            sizeLimit: 256Mi

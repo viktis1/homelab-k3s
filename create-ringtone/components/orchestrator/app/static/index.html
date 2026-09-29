@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html>
+<body>
+
+<h1>Create Ringtone</h1>
+
+<form id="form">
+    <label>Receiver</label><br>
+    <input name="receiver" required><br><br>
+
+    <label>Caller</label><br>
+    <input name="caller" required><br><br>
+
+    <label>Reference audio key</label><br>
+    <input name="reference_audio_key" placeholder="uploads/mille/reference.wav" required><br><br>
+
+    <button type="submit">Create ringtone</button>
+</form>
+
+<pre id="status"></pre>
+<div id="result"></div>
+
+<script>
+const form = document.getElementById("form");
+const status = document.getElementById("status");
+const result = document.getElementById("result");
+
+form.onsubmit = async event => {
+    event.preventDefault();
+
+    status.textContent = "Submitting...";
+    result.innerHTML = "";
+
+    const response = await fetch("/generate", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(Object.fromEntries(new FormData(form)))
+    });
+
+    const job = await response.json();
+
+    if (!response.ok) {
+        status.textContent = JSON.stringify(job);
+        return;
+    }
+
+    status.textContent = `Job ${job.job_id}: ${job.status}`;
+    trackJob(job);
+};
+
+function trackJob(job) {
+    const timer = setInterval(async () => {
+        const response = await fetch(job.status_url);
+        const current = await response.json();
+
+        status.textContent = `Job ${job.job_id}: ${current.status}`;
+
+        if (current.status === "done") {
+            clearInterval(timer);
+            result.innerHTML = `<a href="${job.download_url}">Download ringtone</a>`;
+        }
+
+        if (current.status === "failed") {
+            clearInterval(timer);
+            status.textContent += `\n${current.error}`;
+        }
+    }, 2000);
+}
+</script>
+
+</body>
+</html>

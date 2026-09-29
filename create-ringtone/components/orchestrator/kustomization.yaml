@@ -1,0 +1,8 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: create-ringtone-orchestrator
+
+resources:
+  - resources/orchestrator.deployment.yaml
+  - resources/orchestrator.service.yaml
