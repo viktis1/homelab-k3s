@@ -17,7 +17,7 @@ images:
 
 - name: cloud-ingest-image
   newName: ghcr.io/viktis1/create-ringtone-cloud-ingest
-  newTag: "874ec3a0c7dbf2670e7181b87fa19af702e305df"
+  newTag: "6f29a9dae4dea1e4fdeb7887a7606d6b3eb08eb6"
 
 - name: create-ringtone-orchestrator-image
   newName: ghcr.io/viktis1/create-ringtone-orchestrator
