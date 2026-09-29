@@ -33,3 +33,16 @@ The repository contains manifests for the main services supporting the cluster:
 - `create-ringtone`: Orchestrator that establishes an outbound connection to GCS so the ringtones can be created outside the LAN.  
 
 There are interesting docs in all the self-developed applications. The reader is encouraged to go into the folders and check those out for more technical descriptions of how the apps work.
+
+# Secret Management
+Secrets in this project are handled via SOPS using age keys. To set this up request permission from creator. Install SOPS and AGE if necessary:
+```bash
+# Download SOPS (I use version 3.13.3)
+wget https://github.com/getsops/sops/releases/download/v3.13.3/sops-v3.13.3.linux.amd64 -O /tmp/sops
+sudo install -m 755 /tmp/sops /usr/local/bin/sops
+# Download age
+sudo apt install age
+mkdir -p ~/.config/sops/age
+age-keygen -o ~/.config/sops/age/keys.txt
+```
+When requesting permissions to the github repo secrets, please remember to send over the public key for the age key-pair you created.
