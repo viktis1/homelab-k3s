@@ -34,4 +34,4 @@ secretGenerator:
 - name: server-prometheus-web-config
   files:
   - resources/prometheus.web.secret.yaml
-  - secrets/basic_auth.secret.pwd
+  - resources/basic_auth.secret.pwd

@@ -47,10 +47,13 @@ age-keygen -o ~/.config/sops/age/keys.txt
 # set an environment variable for SOPS by adding this to ~/.bashrc or ~/.zshrc: 
 export SOPS_AGE_KEY_FILE="$HOME/.config/sops/age/keys.txt"
 ```
-To get access to new secrets, your public key your public key must be inserted into the .sops.yaml. To get access to already-created secrets someone with access to the encrypted secrets must update access to keys in the repository
+To get access to new secrets, your public key must be inserted into the .sops.yaml. To get access to already-created secrets someone with access to the encrypted secrets must update access to keys in the repository
 ```bash
 sops updatekeys secret1.yaml
 sops updatekeys secret2.yaml
 ....
 ```
-To encrypt a secret in a file with sops, see the sops tutorial https://getsops.io/docs/usage/common-operations/
+To encrypt a secret in a file with sops, see the sops tutorial https://getsops.io/docs/usage/common-operations/. All of the kubernetes manifests currently rely on you decrypting the secrets into a non-encrypted version to upload them to kubernetes: 
+```bash
+sops decrypt cloudflare/resources/cloudflare.secret.sops.yaml > cloudflare/resources/cloudflare.secret.yaml
+```
