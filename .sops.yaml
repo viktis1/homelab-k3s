@@ -1,0 +1,3 @@
+creation_rules:
+  - path_regex: .* # Any path
+    age: age1rlr90g87ww9q74jhd72jkj3tjqntgjdvajsyswhtevjm8qv2kuys30yw60 # Viktor

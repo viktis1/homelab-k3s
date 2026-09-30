@@ -9,6 +9,8 @@ ghost/
 # Ignore secrets like API keys, passwords, and other sensitive information
 **/secrets/
 **secret**
+# UNLESS it is encrypted with SOPS
+!**/*.sops.* 
 
 # Terraform type stuff
 *.tfvars

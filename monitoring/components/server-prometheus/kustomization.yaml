@@ -33,5 +33,5 @@ configMapGenerator:
 secretGenerator:
 - name: server-prometheus-web-config
   files:
-  - secrets/prometheus.web.yaml
-  - secrets/basic_auth.pwd
+  - resources/prometheus.web.secret.yaml
+  - resources/basic_auth.secret.pwd
