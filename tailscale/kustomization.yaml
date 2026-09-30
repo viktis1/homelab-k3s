@@ -14,7 +14,7 @@ resources:
 secretGenerator:
   - name: tailscale-auth
     envs:
-      - secrets/tailscale-auth.env
+      - resources/tailscale-auth.secret.env
 
 images:
   - name: tailscale-image

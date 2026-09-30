@@ -35,7 +35,7 @@ The repository contains manifests for the main services supporting the cluster:
 There are interesting docs in all the self-developed applications. The reader is encouraged to go into the folders and check those out for more technical descriptions of how the apps work.
 
 # Secret Management
-Secrets in this project are handled via SOPS using age keys. To set this up request permission from creator. Install SOPS and AGE if necessary:
+Secrets in this project are handled via SOPS using age keys (inspired by [this](https://oneuptime.com/blog/post/2026-03-02-how-to-set-up-sops-for-encrypted-secrets-on-ubuntu/view)). To set this up request permission from creator. Install SOPS and AGE if necessary:
 ```bash
 # Download SOPS (I use version 3.13.3)
 wget https://github.com/getsops/sops/releases/download/v3.13.3/sops-v3.13.3.linux.amd64 -O /tmp/sops
@@ -44,5 +44,13 @@ sudo install -m 755 /tmp/sops /usr/local/bin/sops
 sudo apt install age
 mkdir -p ~/.config/sops/age
 age-keygen -o ~/.config/sops/age/keys.txt
+# set an environment variable for SOPS by adding this to ~/.bashrc or ~/.zshrc: 
+export SOPS_AGE_KEY_FILE="$HOME/.config/sops/age/keys.txt"
 ```
-When requesting permissions to the github repo secrets, please remember to send over the public key for the age key-pair you created.
+To get access to new secrets, your public key your public key must be inserted into the .sops.yaml. To get access to already-created secrets someone with access to the encrypted secrets must update access to keys in the repository
+```bash
+sops updatekeys secret1.yaml
+sops updatekeys secret2.yaml
+....
+```
+To encrypt a secret in a file with sops, see the sops tutorial https://getsops.io/docs/usage/common-operations/
