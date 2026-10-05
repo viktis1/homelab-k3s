@@ -11,8 +11,17 @@
     <label>Caller</label><br>
     <input name="caller" required><br><br>
 
-    <label>Reference audio key</label><br>
-    <input name="reference_audio_key" placeholder="uploads/mille/reference.wav" required><br><br>
+    <label>Voice</label><br>
+    <select name="voice_id" id="voice" required>
+        <option value="">Loading voices...</option>
+    </select><br><br>
+
+    <label>Voice clip</label><br>
+    <select name="clip_id" id="clip" required disabled>
+        <option value="">Choose a voice first</option>
+    </select><br><br>
+    
+    <audio id="preview" controls hidden></audio><br><br>
 
     <button type="submit">Create ringtone</button>
 </form>
@@ -24,6 +33,76 @@
 const form = document.getElementById("form");
 const status = document.getElementById("status");
 const result = document.getElementById("result");
+const voice = document.getElementById("voice");
+const clip = document.getElementById("clip");
+const preview = document.getElementById("preview");
+
+
+let voices = [];
+
+async function loadVoices() {
+    const response = await fetch("/voices");
+    const data = await response.json();
+
+    voices = data.voices;
+
+    voice.innerHTML = '<option value="">Choose a voice</option>';
+
+    for (const item of voices) {
+        const option = document.createElement("option");
+        option.value = item.id;
+        option.textContent = item.name;
+        voice.appendChild(option);
+    }
+}
+
+voice.onchange = () => {
+    preview.pause();
+    preview.removeAttribute("src");
+    preview.load();
+    preview.hidden = true;
+
+    const selectedVoice = voices.find(
+        item => item.id === voice.value
+    );
+
+    clip.innerHTML = '<option value="">Choose a clip</option>';
+
+    if (!selectedVoice) {
+        clip.disabled = true;
+        return;
+    }
+
+    for (const item of selectedVoice.clips) {
+        const option = document.createElement("option");
+        option.value = item.id;
+        option.textContent = item.name;
+        clip.appendChild(option);
+    }
+
+    clip.disabled = false;
+};
+
+clip.onchange = () => {
+    preview.pause();
+    preview.removeAttribute("src");
+    preview.load();
+
+    if (!voice.value || !clip.value) {
+        preview.hidden = true;
+        return;
+    }
+
+    const params = new URLSearchParams({
+        voice_id: voice.value,
+        clip_id: clip.value,
+    });
+
+    preview.src = `/voice-preview?${params}`;
+    preview.hidden = false;
+};
+
+loadVoices();
 
 form.onsubmit = async event => {
     event.preventDefault();

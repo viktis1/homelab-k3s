@@ -1,4 +1,4 @@
-name: Build Creation Pipeline image for create-ringtone
+name: Build orchestrator image for create-ringtone
 
 on:
   push:

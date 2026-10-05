@@ -3,6 +3,7 @@ import time
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from pathlib import PurePosixPath
 
 import boto3
 import requests
@@ -19,6 +20,9 @@ RUSTFS_ENDPOINT = "http://rustfs.create-ringtone.svc.viktor.cluster:9000"
 RUSTFS_ACCESS_KEY = os.environ["RUSTFS_ACCESS_KEY"]
 RUSTFS_SECRET_KEY = os.environ["RUSTFS_SECRET_KEY"]
 GPU_ORCHESTRATOR_URL = "http://gpu-orchestrator.gpu-orchestrator.svc.viktor.cluster:8000"
+# Prefix for public voices in RustFS.
+PUBLIC_VOICE_PREFIX = "famous_people/"
+AUDIO_EXTENSIONS = {".wav", ".mp3"}
 
 
 # Create a S3 client for RustFS
@@ -151,6 +155,48 @@ def wait_for_result(job_type: str, job_name: str, timeout_seconds: int = 1200):
     raise TimeoutError(f"{job_type} Job {job_name} did not finish within {timeout_seconds} seconds.")
 
 
+def list_available_voices() -> list[dict]:
+    response = s3.list_objects_v2(
+        Bucket=RUSTFS_BUCKET_IN,
+        Prefix=PUBLIC_VOICE_PREFIX,
+    )
+    voices = {}
+    for obj in response.get("Contents", []):
+        key = obj["Key"]
+        path = PurePosixPath(key)
+        if path.suffix.lower() not in AUDIO_EXTENSIONS:
+            continue
+        # famous_people/seth_rogan/clip1.wav
+        _, voice_id, filename = path.parts # this will fail if the path is not exactly 3 parts...
+        # Create the voice entry if it does not exist, and append the clip to the list of clips for that voice.
+        voices.setdefault(voice_id,
+            {
+                "id": voice_id,
+                "name": voice_id.replace("_", " ").title(),
+                "clips": [],
+            },
+        )
+        voices[voice_id]["clips"].append({
+            "id": filename,
+            "name": path.stem,
+        })
+    return sorted(
+        voices.values(),
+        key=lambda voice: voice["name"].lower(),
+    )
+
+
+
+def get_reference_audio_stream(object_key: str):
+    """
+    Open reference audio from RustFS for streaming to the browser.
+    """
+    response = s3.get_object(
+        Bucket=RUSTFS_BUCKET_IN,
+        Key=object_key,
+    )
+    return response["Body"]
+
 
 # ---------------------------------------------------------------------------
 # Full creation pipeline
@@ -180,7 +226,7 @@ def generate_script(receiver: str, caller: str) -> str:
     return script
 
 
-def create_ringtone(receiver: str, caller: str, reference_audio_key: str):
+def create_ringtone(receiver: str, caller: str, voice_clip_path: str):
     """
     Full first-pass pipeline:
 
@@ -196,7 +242,7 @@ def create_ringtone(receiver: str, caller: str, reference_audio_key: str):
         caller=caller,
     )
     reference_audio_url = create_read_signed_url(
-        reference_audio_key
+        voice_clip_path
     )
     tts_job = submit_job(
         job_type="tts",
@@ -215,5 +261,5 @@ if __name__ == "__main__":
     print(create_ringtone(
         receiver="Viktor",
         caller="Mille",
-        reference_audio_key="uploads/reference.wav"
+        voice_clip_path="uploads/reference.wav"
     ))

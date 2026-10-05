@@ -17,3 +17,6 @@ ghost/
 .terraform/
 *.tfstate
 *.tfstate.*
+
+# Ignore local versions of github actions... (act hates queue: max... https://github.com/nektos/act/pull/6152)
+.github/workflows/*local*

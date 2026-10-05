@@ -3,13 +3,16 @@ import threading
 import uuid
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import FileResponse, Response, StreamingResponse
 from pydantic import BaseModel, Field
     
 
 from main import (
     create_ringtone,
     get_object_bytes,
+    list_available_voices,
+    get_reference_audio_stream,
+    PUBLIC_VOICE_PREFIX
 )
 
 
@@ -18,9 +21,8 @@ app = FastAPI()
 class CreateRingtoneRequest(BaseModel):
     receiver: str = Field(min_length=1)
     caller: str = Field(min_length=1)
-    # This is the RustFS object key produced by the ingest pipeline.
-    reference_audio_key: str = Field(min_length=1) # Example: uploads/mille/reference.wav
-
+    voice_id: str = Field(min_length=1)
+    clip_id: str = Field(min_length=1)
 
 # ---------------------------------------------------------------------------
 # Create a dict to store job status.
@@ -46,14 +48,14 @@ def get_job(job_id: str) -> dict | None:
 # ---------------------------------------------------------------------------
 # Background pipeline execution
 # ---------------------------------------------------------------------------
-def run_ringtone_job(job_id: str, request: CreateRingtoneRequest) -> None:
+def run_ringtone_job(job_id: str, request: CreateRingtoneRequest, voice_clip_path: str) -> None:
     set_job(job_id, {"status": "running"})
 
     try:
         tts_job, output_key, script = create_ringtone(
             receiver=request.receiver,
             caller=request.caller,
-            reference_audio_key=request.reference_audio_key,
+            voice_clip_path=voice_clip_path,
         )
         set_job(
             job_id,
@@ -65,13 +67,7 @@ def run_ringtone_job(job_id: str, request: CreateRingtoneRequest) -> None:
             },
         )
     except Exception as exc:
-        set_job(
-            job_id,
-            {
-                "status": "failed",
-                "error": str(exc),
-            },
-        )
+        set_job(job_id,{"status":"failed", "error": str(exc)})
 
 
 # ---------------------------------------------------------------------------
@@ -86,17 +82,19 @@ def generate(request: CreateRingtoneRequest, background_tasks: BackgroundTasks):
     """
     job_id = uuid.uuid4().hex
 
+    voice_clip_path = f"{PUBLIC_VOICE_PREFIX}{request.voice_id}/{request.clip_id}"
+
     set_job(
         job_id,
         {
             "status": "queued",
         },
     )
-
     background_tasks.add_task(
         run_ringtone_job,
         job_id,
         request,
+        voice_clip_path,
     )
 
     return {
@@ -118,6 +116,28 @@ def status(job_id: str):
         )
     return job
 
+@app.get("/voices")
+def voices():
+    return {
+        "voices": list_available_voices(),
+    }
+
+@app.get("/voice-preview")
+def voice_preview(voice_id: str, clip_id: str):
+
+    voice_clip_path = f"{PUBLIC_VOICE_PREFIX}{voice_id}/{clip_id}"
+
+    audio = get_reference_audio_stream(voice_clip_path)
+
+    if clip_id.lower().endswith(".mp3"):
+        media_type = "audio/mpeg"
+    else:
+        media_type = "audio/wav"
+
+    return StreamingResponse(
+        audio.iter_chunks(chunk_size=64 * 1024),
+        media_type=media_type,
+    )
 
 @app.get("/download/{job_id}")
 def download(job_id: str):

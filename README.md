@@ -30,7 +30,7 @@ The repository contains manifests for the main services supporting the cluster:
 - `gpu/gpu_orchestrator`: small CPU-only service responsible for creating GPU Kubernetes Jobs.
 - `gpu/llm`: GPU jobs that can run selected models from Hugging Face.
 - `gpu/tts`: GPU jobs that can run VoxCPM2 for TTS.
-- `create-ringtone`: Orchestrator that establishes an outbound connection to GCS so the ringtones can be created outside the LAN.  
+- `create-ringtone`: Orchestrator that creates a new ringtone using the gpu-orchestrator. It interacts with GCP and is exposed publically via cloudflare.
 
 There are interesting docs in all the self-developed applications. The reader is encouraged to go into the folders and check those out for more technical descriptions of how the apps work.
 

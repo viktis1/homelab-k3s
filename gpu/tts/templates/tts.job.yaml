@@ -69,7 +69,7 @@ spec:
                           "--hf-model-id", hf_model_id,
                           "--cache-dir", model_cache,
                           "--device", "cuda", "--no-denoiser"]
-              
+              print("Running command:", " ".join(command))
               subprocess.run(command, check=True)
               with output_file.open("rb") as f:
                   response = requests.post(callback_url, data=f, headers={"Content-Type": "audio/wav"}, timeout=(10, 120))
