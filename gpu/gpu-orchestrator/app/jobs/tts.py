@@ -17,7 +17,7 @@ RESULT_DIR = Path("/results")
 
 class Request(BaseModel):
     prompt: str = "This is a sentence read out loud by a text-to-speech model."
-    reference_audio_url: str | None = None
+    reference_audio_url: str = ""
 
 
 def build_job(

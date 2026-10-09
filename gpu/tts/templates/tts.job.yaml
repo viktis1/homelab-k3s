@@ -11,7 +11,8 @@ spec:
       runtimeClassName: nvidia
       containers:
         - name: tts
-          image: ghcr.io/viktis1/voxcpm-open-tts:sha-8a9ed23
+          imagePullPolicy: Always
+          image: ghcr.io/viktis1/voxcpm-open-tts:sha-a8c8cb8
 
           env:
             - name: TTS_TEXT
