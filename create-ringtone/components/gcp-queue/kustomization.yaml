@@ -1,0 +1,11 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - resources/pubsub-watcher.deployment.yaml  
+  - resources/pubsub-watcher.serviceaccount.yaml
+
+configMapGenerator:
+  - name: pubsub-watcher-credentials
+    files:
+      - credential-configuration.json=resources/pubsub-watcher-credentials.json  
