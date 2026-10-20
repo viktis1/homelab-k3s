@@ -1,0 +1,134 @@
+---
+- name: Configure backup partition as ZFS
+  hosts: pve
+  become: true
+  gather_facts: false
+
+  vars:
+    target_device: /dev/nvme1n1p1
+    pool_name: storage
+    mount_path: /mnt/storage
+
+  tasks:
+
+    # ------------------------------------------------------------------------------------------------
+    # 1. Inspect existing storage layout and warn the user about destruction.  
+    #    Very hardcoded to my setup
+    # ------------------------------------------------------------------------------------------------
+    - name: Confirm target exists # This will fail if partition is missing
+      ansible.builtin.command: lsblk "{{ target_device }}"
+      register: disk_check
+      changed_when: false
+
+    - name: Check whether desired ZFS pool already exists 
+      ansible.builtin.command:
+        argv: [zpool, list, "{{ pool_name }}"]
+      register: zfs_pool_check
+      changed_when: false
+      failed_when: zfs_pool_check.rc == 0 # If the pool exists, we don't want to touch it.
+
+    - name: check for existing mount
+      ansible.builtin.command:
+        argv: [findmnt, -n, --source, "{{ target_device }}"]
+      register: current_mount
+      changed_when: false
+      failed_when: false # User decides whether to proceed.
+
+    - name: Inspect filesystem signatures
+      ansible.builtin.command:
+        argv: [wipefs, --no-act, "{{ target_device }}"]
+      register: signatures
+      changed_when: false
+
+    - name: Check for active processes on disk
+      ansible.builtin.command: fuser -v {{ target_device }}
+      register: active_processes
+      changed_when: false
+      failed_when: active_processes.rc not in [0, 1]
+
+    - name: Abort if active processes exist
+      ansible.builtin.assert:
+        that:
+          - active_processes.rc != 0
+        fail_msg: |
+          ERROR: Active processes detected on {{ target_device }}!
+
+          {{ active_processes.stdout }}
+          {{ active_processes.stderr }}
+
+          Refusing to modify the disk.
+
+    - name: Check mount directory
+      ansible.builtin.command:
+        argv: [tree, -F, "{{ mount_path }}"]
+      register: destination_mount
+      changed_when: false
+      failed_when: false
+
+    - name: Storage destruction safety check
+      block:
+        - name: Confirm destruction of existing storage
+          ansible.builtin.pause:
+            prompt: |
+              WARNING: All data on {{ target_device }} will be destroyed!
+
+
+              Target:
+              {{ disk_check.stdout }}
+
+              Existing signatures:
+              {{ signatures.stdout }}
+
+              Current mount:
+              {{ current_mount.stdout | default('Not mounted', true) }}
+
+              mount_path (is it already a mountpoint?):
+              {{ destination_mount.stdout | default('Not mounted', true) }}
+
+              Type DESTROY to continue:
+          register: confirmation
+
+        - name: Abort unless destruction was confirmed
+          ansible.builtin.assert:
+            that:
+              - confirmation.user_input == "DESTROY"
+            fail_msg: "Storage destruction cancelled."
+
+    # ------------------------------------------------------------------------------------------------
+    # 2. Create ZFS pool and mount it - DESTRUCTIVE
+    # ------------------------------------------------------------------------------------------------
+    - name: Unmount existing filesystem
+      ansible.builtin.command:
+        argv: [umount, "{{ target_device }}"]
+      when: current_mount.rc == 0
+
+    - name: Delete everything in the mount point (PVE sometimes creates folders in the mount point)
+      ansible.builtin.command:
+        argv: [rm, -rf, "{{ mount_path }}"]
+      when: destination_mount.rc == 0
+
+    - name: Remove existing filesystem signatures
+      ansible.builtin.command:
+        argv: [wipefs, -a, "{{ target_device }}"]
+
+    - name: Create ZFS pool
+      ansible.builtin.command:
+        argv:
+          - zpool
+          - create
+          - -o
+          - ashift=12
+          - -m
+          - "{{ mount_path }}"
+          - "{{ pool_name }}"
+          - "{{ target_device }}"
+
+    # --------------------------------------------------
+    # 5. Verification
+    # --------------------------------------------------
+
+    - name: Verify ZFS pool
+      ansible.builtin.command:
+        argv: [zpool, status, "{{ pool_name }}"]
+      changed_when: false
+

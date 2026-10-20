@@ -1,0 +1,121 @@
+---
+- name: Configure monthly PBS backups for K3s VMs
+  hosts: pve
+  become: true
+  gather_facts: false
+
+  vars:
+    backup_job_id: k3s-monthly-pbs
+    backup_storage_id: pbs-local
+    backup_schedule: monthly  # First of every month, midnight in PVE host timezone
+    backup_vmids: [211, 212, 213, 214]
+    backup_mode: snapshot
+    backup_comment: "Monthly backup of K3s VMs to PBS"
+    backup_repeat_missed: 1 # back it up whenever, if it was not possible on the first of every month
+
+  tasks:
+    - name: Read storage configuration
+      ansible.builtin.command:
+        argv: [pvesh, get, "/storage/{{ backup_storage_id }}", --output-format, json]
+      register: storage_config
+      changed_when: false
+
+    - name: Require PBS storage
+      ansible.builtin.assert:
+        that:
+          - (storage_config.stdout | from_json).type == 'pbs'
+        fail_msg: "{{ backup_storage_id }} must be a registered PBS storage."
+
+    - name: Check the PBS storage is available
+      ansible.builtin.command:
+        argv: [pvesm, status, --storage, "{{ backup_storage_id }}"]
+      changed_when: false
+
+    - name: Confirm VMs exist
+      ansible.builtin.command:
+        argv: [qm, status, "{{ item }}"]
+      loop: "{{ backup_vmids }}"
+      changed_when: false
+
+    - name: Read configured backup jobs
+      ansible.builtin.command:
+        argv: [pvesh, get, /cluster/backup, --output-format, json]
+      register: backup_jobs
+      changed_when: false
+
+    - name: Find the managed job
+      ansible.builtin.set_fact:
+        managed_job: >-
+          {{ (backup_jobs.stdout | from_json
+              | selectattr('id', 'equalto', backup_job_id)
+              | list | first) | default({}) }}
+
+    - name: Create the monthly job if absent
+      ansible.builtin.command:
+        argv:
+          - pvesh
+          - create
+          - /cluster/backup
+          - --id
+          - "{{ backup_job_id }}"
+          - --storage
+          - "{{ backup_storage_id }}"
+          - --schedule
+          - "{{ backup_schedule }}"
+          - --vmid
+          - "{{ backup_vmids | join(',') }}"
+          - --mode
+          - "{{ backup_mode }}"
+          - --enabled
+          - "1"
+          - --repeat-missed
+          - "{{ backup_repeat_missed | string }}"
+          - --comment
+          - "{{ backup_comment }}"
+      when: managed_job | length == 0
+
+    - name: Update the monthly job when settings differ
+      ansible.builtin.command:
+        argv:
+          - pvesh
+          - set
+          - "/cluster/backup/{{ backup_job_id }}"
+          - --storage
+          - "{{ backup_storage_id }}"
+          - --schedule
+          - "{{ backup_schedule }}"
+          - --vmid
+          - "{{ backup_vmids | join(',') }}"
+          - --mode
+          - "{{ backup_mode }}"
+          - --enabled
+          - "1"
+          - --repeat-missed
+          - "{{ backup_repeat_missed | string }}"
+          - --comment
+          - "{{ backup_comment }}"
+      when:
+        - managed_job | length > 0
+        - >-
+          managed_job.get('storage', '') != backup_storage_id or
+          managed_job.get('schedule', '') != backup_schedule or
+          managed_job.get('vmid', '') != (backup_vmids | join(',')) or
+          managed_job.get('mode', '') != backup_mode or
+          (managed_job.get('enabled', 1) | int) != 1 or
+          (managed_job.get('repeat-missed', 0) | int) != backup_repeat_missed or
+          managed_job.get('comment', '') != backup_comment
+
+    - name: Read the finished job
+      ansible.builtin.command:
+        argv: [pvesh, get, "/cluster/backup/{{ backup_job_id }}", --output-format, json]
+      register: final_job
+      changed_when: false
+
+    - name: Assert desired job exists
+      ansible.builtin.assert:
+        that:
+          - (final_job.stdout | from_json).storage == backup_storage_id
+          - (final_job.stdout | from_json).schedule == backup_schedule
+          - (final_job.stdout | from_json).vmid == (backup_vmids | join(','))
+          - (final_job.stdout | from_json).mode == backup_mode
+          - ((final_job.stdout | from_json).enabled | default(1) | int) == 1

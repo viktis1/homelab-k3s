@@ -1,0 +1,78 @@
+---
+- name: Install PBS on Proxmox and connect it to PVE
+  hosts: pve
+  become: true
+  gather_facts: false
+
+  vars:
+    pbs_datastore: k3s-backups
+    pbs_path: /mnt/storage/backups/pbs
+    pbs_storage_id: pbs-local
+
+  tasks:
+    - name: Configure PBS repository
+      ansible.builtin.copy:
+        dest: /etc/apt/sources.list.d/pbs-no-subscription.sources
+        mode: '0644'
+        content: |
+          Types: deb
+          URIs: http://download.proxmox.com/debian/pbs
+          Suites: trixie
+          Components: pbs-no-subscription
+          Signed-By: /usr/share/keyrings/proxmox-archive-keyring.gpg
+    
+    - name: Disable PBS enterprise repository
+      ansible.builtin.file:
+        path: /etc/apt/sources.list.d/pbs-enterprise.sources
+        state: absent
+
+    - name: Install PBS
+      ansible.builtin.apt:
+        name: proxmox-backup-server
+        state: present
+        update_cache: true
+
+    - name: Check whether PBS datastore is registered
+      ansible.builtin.command:
+        argv: [proxmox-backup-manager, datastore, show, "{{ pbs_datastore }}"]
+      register: pbs_store
+      changed_when: false
+      failed_when: false
+
+    - name: Register existing ZFS dataset as PBS datastore
+      ansible.builtin.command:
+        argv: [proxmox-backup-manager, datastore, create, "{{ pbs_datastore }}", "{{ pbs_path }}"]
+      when: pbs_store.rc != 0
+
+    - name: Get PBS certificate fingerprint
+      ansible.builtin.command:
+        argv: [openssl, x509, -in, /etc/proxmox-backup/proxy.pem, -noout, -fingerprint, -sha256]
+      register: pbs_cert
+      changed_when: false
+
+    - name: Check whether PBS storage is registered in PVE
+      ansible.builtin.command:
+        argv:
+          - pvesm
+          - status
+      register: pve_store
+      changed_when: false
+
+    - name: Register PBS storage in PVE
+      ansible.builtin.command:
+        argv:
+          - pvesm
+          - add
+          - pbs
+          - "{{ pbs_storage_id }}"
+          - --server
+          - 127.0.0.1
+          - --datastore
+          - "{{ pbs_datastore }}"
+          - --username
+          - root@pam
+          - --password
+          - "{{ pbs_password }}"
+          - --fingerprint
+          - "{{ pbs_cert.stdout.split('=')[-1] | trim }}"
+      when: "'pbs-local' not in pve_store.stdout"

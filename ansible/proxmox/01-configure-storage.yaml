@@ -1,0 +1,63 @@
+---
+- name: Configure storage as backup and ISO storage
+  hosts: pve
+  become: true
+  gather_facts: false
+
+  tasks:
+   
+    # --------------------------------------------------
+    # 6. configure the storage as backup
+    # --------------------------------------------------
+    - name: Get existing ZFS datasets
+      ansible.builtin.command:
+        argv: [zfs, list, -H, -o, name, -r, storage]
+      register: existing_datasets
+      changed_when: false
+
+    - name: Create ZFS datasets
+      ansible.builtin.command:
+        argv: [zfs, create, "storage/{{ item }}"]
+      loop: [backups, isos]
+      when: "'storage/' + item not in existing_datasets.stdout_lines"
+
+    - name: Get existing Proxmox storage definitions
+      ansible.builtin.command:
+        argv: [pvesh, get, /storage, --output-format, json]
+      register: existing_storages
+      changed_when: false
+
+    - name: Register Proxmox backup storage
+      ansible.builtin.command:
+        argv:
+          - pvesm
+          - add
+          - dir
+          - pve-backups
+          - --path
+          - /mnt/storage/backups
+          - --content
+          - backup
+          - --prune-backups
+          - keep-last=1
+          - --is_mountpoint
+          - "yes"
+          - --create-base-path
+          - "0"
+      when: "'pve-backups' not in (existing_storages.stdout | from_json | map(attribute='storage') | list)"
+
+    - name: Register Proxmox ISO storage
+      ansible.builtin.command:
+        argv: [pvesm, add, dir, isos, --path, /mnt/storage/isos, --content, "iso,vztmpl,snippets", --is_mountpoint, "yes", --create-base-path, "0"]
+      when: "'isos' not in (existing_storages.stdout | from_json | map(attribute='storage') | list)"
+
+
+    - name: Enable automatic ZFS backup pool import
+      ansible.builtin.systemd_service:
+        name: "{{ item }}"
+        enabled: true
+      loop:
+        - zfs.target
+        - zfs-import.target
+        - zfs-import@storage.service
+        - zfs-mount.service
