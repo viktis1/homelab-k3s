@@ -9,6 +9,7 @@ resources:
 - components/object-storage
 - components/cloud-ingest
 - components/orchestrator
+- components/gcp-queue
 
 
 images:
@@ -22,3 +23,7 @@ images:
 - name: create-ringtone-orchestrator-image
   newName: ghcr.io/viktis1/create-ringtone-orchestrator
   newTag: "c1cb4b05fa2e8525cb305c621157e65f5ca745eb"
+
+- name: create-ringtone-pubsub-watcher-image
+  newName: ghcr.io/viktis1/create-ringtone-pubsub-watcher
+  newTag: "YOUR_IMAGE_TAG"

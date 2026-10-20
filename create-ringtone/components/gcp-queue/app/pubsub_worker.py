@@ -1,35 +1,51 @@
 import json
 import os
+import time
+
+import requests
 from google.cloud import pubsub_v1
-from app import CreateRingtoneRequest
-from main import create_ringtone, PUBLIC_VOICE_PREFIX
 
 
 PROJECT = os.environ["GOOGLE_CLOUD_PROJECT"]
 SUBSCRIPTION = os.environ["PUBSUB_SUBSCRIPTION"]
 
+ORCHESTRATOR_URL = os.environ["ORCHESTRATOR_URL"]
+
 
 def callback(message):
     try:
-        # Decode the Pub/Sub message
+        # Decode the message received from Pub/Sub.
         payload = json.loads(message.data.decode("utf-8"))
-        # Validate the message
-        request = CreateRingtoneRequest(**payload)
-        voice_clip_path = (
-            f"{PUBLIC_VOICE_PREFIX}"
-            f"{request.voice_id}/{request.clip_id}"
+        # Submit the job to the create-ringtone orchestrator.
+        response = requests.post(
+            f"{ORCHESTRATOR_URL}/generate",
+            json=payload,
+            timeout=30,
         )
-        # Execute the existing ringtone pipeline
-        tts_job, output_key, script = create_ringtone(
-            receiver=request.receiver,
-            caller=request.caller,
-            voice_clip_path=voice_clip_path,
-        )
-        print(f"Ringtone created: {output_key}")
-        # Acknowledge successful processing
-        message.ack()
+        response.raise_for_status()
+        job_id = response.json()["job_id"]
+        print(f"Submitted ringtone job: {job_id}")
+        # Monitor the job.
+        deadline = time.monotonic() + 3000
+        while time.monotonic() < deadline:
+            response = requests.get(
+                f"{ORCHESTRATOR_URL}/status/{job_id}",
+                timeout=30,
+            )
+            response.raise_for_status()
+            job = response.json()
+            status = job["status"]
+            if status == "done":
+                print(f"Ringtone completed: {job['output_key']}")
+                message.ack()
+                return
+            if status == "failed":
+                raise RuntimeError(job.get("error", "Unknown error"))
+            time.sleep(10)
+        raise TimeoutError(f"Ringtone job {job_id} timed out")
+
     except Exception as exc:
-        print(f"Ringtone generation failed: {exc}")
+        print(f"Ringtone processing failed: {exc}")
         message.nack()
 
 
@@ -44,6 +60,7 @@ if __name__ == "__main__":
             callback=callback,
             flow_control=pubsub_v1.types.FlowControl(
                 max_messages=1,
+                max_lease_duration=3600,
             ),
         )
         print(f"Listening on {subscription}")

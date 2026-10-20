@@ -4,10 +4,3 @@ kind: Kustomization
 resources:
   - resources/orchestrator.deployment.yaml
   - resources/orchestrator.service.yaml
-  - resources/orchestrator-pubsub-watcher.deployment.yaml
-  - resources/orchestrator-pubsub-watcher.serviceaccount.yaml
-
-configMapGenerator:
-  - name: ringtone-worker-gcp-credentials
-    files:
-      - credential-configuration.json=resources/orchestrator-pubsub-watcher-credentials.json

@@ -15,8 +15,8 @@ spec:
     spec:
       serviceAccountName: create-ringtone-pubsub-watcher
       containers:
-        - name: orchestrator-pubsub-watcher
-          image: create-ringtone-orchestrator-image
+        - name: pubsub-watcher
+          image: create-ringtone-pubsub-watcher-image
           command:
             - python
             - pubsub_worker.py
@@ -27,6 +27,10 @@ spec:
               value: ringtone-generate-worker
             - name: GOOGLE_APPLICATION_CREDENTIALS
               value: /etc/workload-identity/credential-configuration.json
+            - name: ORCHESTRATOR_URL
+              value: "http://create-ringtone-orchestrator.create-ringtone.svc.cluster.local:8000"
+            - name: PYTHONUNBUFFERED
+              value: "1"
           resources:
             requests:
               cpu: 50m
@@ -51,4 +55,4 @@ spec:
                   path: token
         - name: gcp-credentials
           configMap:
-            name: ringtone-worker-gcp-credentials
+            name: pubsub-watcher-credentials

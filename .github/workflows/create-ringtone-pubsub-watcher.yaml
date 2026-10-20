@@ -1,0 +1,73 @@
+name: Build PubSub Watcher image for create-ringtone
+
+on:
+  push:
+    branches:
+      - main
+      - create-ringtone
+    paths:
+      - "create-ringtone/components/gcp-queue/**"
+      - "!create-ringtone/components/gcp-queue/kustomization.yaml"
+      - "!create-ringtone/components/gcp-queue/README.md"
+      - "!create-ringtone/components/gcp-queue/resources/**"
+      - ".github/workflows/create-ringtone-pubsub-watcher-image.yaml"
+
+  workflow_dispatch:
+
+concurrency:
+  group: kustomize-image-updates
+  cancel-in-progress: false
+  queue: max
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: ./create-ringtone/components/gcp-queue
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/create-ringtone-pubsub-watcher:${{ github.sha }}
+
+      - name: Sync branch
+        run: |
+          git fetch origin "${GITHUB_REF_NAME}"
+          git checkout -B "${GITHUB_REF_NAME}" "origin/${GITHUB_REF_NAME}"
+
+      - name: Update Kustomize image
+        run: |
+          grep -q -- "- name: create-ringtone-pubsub-watcher-image" create-ringtone/kustomization.yaml
+
+          sed -i \
+            '/- name: create-ringtone-pubsub-watcher-image/,/newTag:/ s|newTag: .*|newTag: "'"${GITHUB_SHA}"'"|' \
+            create-ringtone/kustomization.yaml
+
+      - name: Commit Kustomize image
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add create-ringtone/kustomization.yaml
+
+          if git diff --cached --quiet; then
+            echo "Kustomize image is already up to date"
+          else
+            git commit -m "chore: update create-ringtone-pubsub-watcher image to ${GITHUB_SHA}"
+            git push origin HEAD:${GITHUB_REF_NAME}
+          fi
