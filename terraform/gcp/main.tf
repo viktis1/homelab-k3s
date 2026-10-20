@@ -117,7 +117,7 @@ resource "google_iam_workload_identity_pool_provider" "k3s" {
 
   oidc {
     issuer_uri = var.k3s_issuer_uri
-    jwks_json  = file("${path.module}/../../../create-ringtone/components/cloud-ingest/cluster-jwks.json")
+    jwks_json  = file("${path.module}/../../create-ringtone/components/cloud-ingest/cluster-jwks.json")
   }
 }
 

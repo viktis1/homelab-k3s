@@ -1,2 +1,0 @@
-# GCP queue
-Since my cluster is not always available, I will create a small GCP Cloud Run function, that accepts incoming requests to change ringtones and then store those requests as GCP pub/sub messages. The messages are saved in a PUBSUB topic (not the same one as in cloud-ingest) up to 31 days. To set this up, see `terraform/gcp`.

@@ -29,3 +29,7 @@ Review the plan before approving the apply.
 If the resources already exist because they were created by following [`create-ringtone/components/cloud-ingest/README.md`](../../../create-ringtone/components/cloud-ingest/README.md), rename [`terraform/gcp/ingestion/imports.tf.applied`](terraform/gcp/ingestion/imports.tf.applied) to [`terraform/gcp/ingestion/iimports.tf`](`terraform/gcp/ingestion/iimports.tf`) **before** running the commands above. Terraform loads `.tf` files automatically, and the import blocks tell it to adopt those existing resources instead of trying to create them.
 
 After the first successful apply, rename `imports.tf` back to `imports.tf.applied`. The imported resources remain in Terraform state and continue to be managed by `main.tf`; the import blocks are no longer required. Leave the import file inactive when provisioning a new project.
+
+
+# Add-ons
+- **pubsubs-queue.tf:** A new pubsub topic that lets users (only me) publish messages to GCP pubsub to create a generate queue.
