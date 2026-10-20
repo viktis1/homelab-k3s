@@ -1,0 +1,9 @@
+# Copy this file to terraform.tfvars (the existing repository .gitignore ignores *.tfvars).
+project_id = "ringtone-k8s"
+region     = "europe-west1"
+
+# Generate with: openssl rand -hex 32
+api_key = "REPLACE_WITH_A_RANDOM_KEY"
+
+# Leave empty for the first terraform apply; set to the built image URI afterward.
+image_uri = ""

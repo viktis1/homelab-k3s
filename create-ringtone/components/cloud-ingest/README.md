@@ -24,6 +24,15 @@ RustFS
 
 
 ##  GCP setup
+
+> **Note:** This infrastructure was originally configured manually but has
+> since been migrated to Terraform. I recommend using the Terraform configuration 
+> in [`terraform/gcp/ingestion`](terraform/gcp/ingestion).
+>
+> The manual setup instructions are preserved below for reference and for
+> those who prefer configuring GCP resources directly.
+
+
 Create a GCP project before running these commands. The commands below assume that the Google Cloud CLI is installed and authenticated.
 
 SOME COMMANDS ASSUME YOU ARE RUNNING THEM FROM THE REPOSITORY ROOT.
