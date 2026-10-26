@@ -12,4 +12,4 @@ resources:
 images:
 - name: cloudflared-image
   newName: cloudflare/cloudflared
-  newTag: "latest"
+  newTag: "2026.10.4"
