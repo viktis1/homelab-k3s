@@ -6,15 +6,21 @@ namespace: create-ringtone
 resources:
 - resources/create-ringtone.namespace.yaml
 - resources/create-ringtone-rustfs.pv.yaml
+
 - components/object-storage
 - components/cloud-ingest
 - components/orchestrator
 - components/gcp-queue
+- components/relational-database
 
 
 images:
 - name: rustfs
   newTag: 1.0.0
+
+- name: postgres-image
+  newName: postgres
+  newTag: "18.6"
 
 - name: cloud-ingest-image
   newName: ghcr.io/viktis1/create-ringtone-cloud-ingest
