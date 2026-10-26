@@ -26,4 +26,4 @@ images:
 
 - name: create-ringtone-pubsub-watcher-image
   newName: ghcr.io/viktis1/create-ringtone-pubsub-watcher
-  newTag: "fb30953da62f7ecd8fb4916b969860c48c3ecea7"
+  newTag: "f44cd65c54ff63e58f6c5c7614006945868c1167"

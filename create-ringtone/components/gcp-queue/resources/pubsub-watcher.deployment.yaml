@@ -17,6 +17,7 @@ spec:
       containers:
         - name: pubsub-watcher
           image: create-ringtone-pubsub-watcher-image
+          imagePullPolicy: Always
           command:
             - python
             - pubsub_worker.py
@@ -28,7 +29,7 @@ spec:
             - name: GOOGLE_APPLICATION_CREDENTIALS
               value: /etc/workload-identity/credential-configuration.json
             - name: ORCHESTRATOR_URL
-              value: "http://create-ringtone-orchestrator.create-ringtone.svc.cluster.local:8000"
+              value: "http://create-ringtone-orchestrator.create-ringtone.svc.viktor.cluster:8000"
             - name: PYTHONUNBUFFERED
               value: "1"
           resources:
