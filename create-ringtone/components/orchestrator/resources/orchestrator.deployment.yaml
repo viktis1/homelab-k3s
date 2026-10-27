@@ -17,6 +17,7 @@ spec:
           image: create-ringtone-orchestrator-image
           imagePullPolicy: Always
           env:
+            # RustFS connection
             - name: RUSTFS_ACCESS_KEY
               valueFrom:
                 secretKeyRef:
@@ -27,6 +28,18 @@ spec:
                 secretKeyRef:
                   name: rustfs
                   key: secret-key
+            # PostgreSQL connection
+            - name: DB_HOST
+              value: ringtone-postgres
+            - name: DB_NAME
+              value: ringtone
+            - name: DB_USER
+              value: ringtone
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: ringtone-postgres
+                  key: password
           resources:
             requests:
               cpu: "50m"

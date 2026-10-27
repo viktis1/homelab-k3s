@@ -1,12 +1,13 @@
 import os
-import threading
 import uuid
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException
 from fastapi.responses import FileResponse, Response, StreamingResponse
 from pydantic import BaseModel, Field
+from contextlib import asynccontextmanager
     
 
+from database import init_db, set_job, get_job
 from main import (
     create_ringtone,
     get_object_bytes,
@@ -16,7 +17,13 @@ from main import (
 )
 
 
-app = FastAPI()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db() # Before the app starts
+    yield # This is where the app runs
+    # Nothing happens on app shutdown, since I am not using a database connection pool.
+app = FastAPI(lifespan=lifespan)
 
 class CreateRingtoneRequest(BaseModel):
     receiver: str = Field(min_length=1)
@@ -24,25 +31,6 @@ class CreateRingtoneRequest(BaseModel):
     voice_id: str = Field(min_length=1)
     clip_id: str = Field(min_length=1)
 
-# ---------------------------------------------------------------------------
-# Create a dict to store job status.
-# ---------------------------------------------------------------------------
-# Limitation:
-# - jobs disappear if this pod restarts... Might need a persistent store...
-
-jobs: dict[str, dict] = {}
-jobs_lock = threading.Lock()
-
-
-def set_job(job_id: str, value: dict) -> None:
-    with jobs_lock:
-        jobs[job_id] = value
-
-
-def get_job(job_id: str) -> dict | None:
-    with jobs_lock:
-        job = jobs.get(job_id)
-        return dict(job) if job is not None else None
 
 
 # ---------------------------------------------------------------------------
@@ -88,6 +76,9 @@ def generate(request: CreateRingtoneRequest, background_tasks: BackgroundTasks):
         job_id,
         {
             "status": "queued",
+            "receiver": request.receiver,
+            "caller": request.caller,
+            "voice_clip_path": voice_clip_path,
         },
     )
     background_tasks.add_task(
