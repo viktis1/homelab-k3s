@@ -3,7 +3,7 @@ import uuid
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException
 from fastapi.responses import FileResponse, Response, StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, UUID4
 from contextlib import asynccontextmanager
     
 
@@ -25,12 +25,13 @@ async def lifespan(app: FastAPI):
     # Nothing happens on app shutdown, since I am not using a database connection pool.
 app = FastAPI(lifespan=lifespan)
 
+
 class CreateRingtoneRequest(BaseModel):
     receiver: str = Field(min_length=1)
     caller: str = Field(min_length=1)
     voice_id: str = Field(min_length=1)
     clip_id: str = Field(min_length=1)
-
+    job_id: UUID4 | None = None
 
 # ---------------------------------------------------------------------------
 # API
@@ -42,7 +43,7 @@ def generate(request: CreateRingtoneRequest, background_tasks: BackgroundTasks):
     This creates a background task, so it is important to lock threads
     when getting and setting jobs.
     """
-    job_id = uuid.uuid4().hex
+    job_id = request.job_id.hex if request.job_id else uuid.uuid4().hex
 
     voice_clip_path = f"{PUBLIC_VOICE_PREFIX}{request.voice_id}/{request.clip_id}"
 

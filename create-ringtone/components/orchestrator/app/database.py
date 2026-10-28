@@ -76,7 +76,7 @@ def get_job(job_id: str) -> dict | None:
     with connect() as conn:
         row = conn.execute(
             """
-            SELECT status, details
+            SELECT status, details, created_at
             FROM ringtone_jobs
             WHERE job_id = %s
             """,
@@ -86,9 +86,10 @@ def get_job(job_id: str) -> dict | None:
     if row is None:
         return None
 
-    status, details = row
+    status, details, created_at = row
 
     return {
         **details,
         "status": status,
+        "created_at": created_at,
     }
