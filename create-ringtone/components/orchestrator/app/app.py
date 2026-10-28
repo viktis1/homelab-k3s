@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field, UUID4
 from contextlib import asynccontextmanager
     
 
-from database import init_db, set_job, get_job
+from database import init_db, create_job, set_job, get_job
 from main import (
     create_ringtone,
     get_object_bytes,
@@ -47,7 +47,7 @@ def generate(request: CreateRingtoneRequest, background_tasks: BackgroundTasks):
 
     voice_clip_path = f"{PUBLIC_VOICE_PREFIX}{request.voice_id}/{request.clip_id}"
 
-    set_job(
+    created = create_job(
         job_id,
         {
             "status": "queued",
@@ -56,17 +56,18 @@ def generate(request: CreateRingtoneRequest, background_tasks: BackgroundTasks):
             "voice_clip_path": voice_clip_path,
         },
     )
-    background_tasks.add_task(
-        create_ringtone,
-        job_id,
-        request.receiver,
-        request.caller,
-        voice_clip_path,
-    )
+    if created:
+        background_tasks.add_task(
+            create_ringtone,
+            job_id,
+            request.receiver,
+            request.caller,
+            voice_clip_path,
+        )
 
     return {
         "job_id": job_id,
-        "status": "queued",
+        "status": "queued" if created else get_job(job_id)["status"],
         "status_url": f"/status/{job_id}",
         "download_url": f"/download/{job_id}",
     }

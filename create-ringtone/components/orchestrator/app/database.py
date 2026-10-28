@@ -35,9 +35,33 @@ def init_db():
         """)
 
 
+def create_job(job_id: str, value: dict) -> bool:
+    """
+    Create a job only if its ID does not already exist.
+
+    Returns True if created, False if already present.
+    """
+    with connect() as conn:
+        row = conn.execute(
+            """
+            INSERT INTO ringtone_jobs (job_id, status, details)
+            VALUES (%s, %s, %s)
+            ON CONFLICT (job_id) DO NOTHING
+            RETURNING job_id
+            """,
+            (
+                job_id,
+                value["status"],
+                Jsonb(value),
+            ),
+        ).fetchone()
+
+    return row is not None
+
+
 def set_job(job_id: str, value: dict):
     """
-    Insert or update a job.
+    Update a job.
 
     Existing details are preserved when new
     information becomes available.

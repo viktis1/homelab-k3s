@@ -25,27 +25,11 @@ def callback(message):
         response.raise_for_status()
         job_id = response.json()["job_id"]
         print(f"Submitted ringtone job: {job_id}")
-        # Monitor the job.
-        deadline = time.monotonic() + 3000
-        while time.monotonic() < deadline:
-            response = requests.get(
-                f"{ORCHESTRATOR_URL}/status/{job_id}",
-                timeout=30,
-            )
-            response.raise_for_status()
-            job = response.json()
-            status = job["status"]
-            if status == "done":
-                print(f"Ringtone completed: {job['output_key']}")
-                message.ack()
-                return
-            if status == "failed":
-                raise RuntimeError(job.get("error", "Unknown error"))
-            time.sleep(10)
-        raise TimeoutError(f"Ringtone job {job_id} timed out")
+
+        message.ack()
 
     except Exception as exc:
-        print(f"Ringtone processing failed: {exc}")
+        print(f"Ringtone submission failed: {exc}")
         message.nack()
 
 
