@@ -34,7 +34,7 @@ The ingestion worker authenticates to Google Cloud using Workload Identity Feder
 The required GCP infrastructure is managed through Terraform in `terraform/gcp/`.
 
 
-##  Manual GCP setup (DEPERECATED)
+##  Manual GCP setup (DEPRECATED)
 
 > **Note:** The manual setup instructions are preserved below for reference
 > and for those who prefer configuring GCP resources directly.
