@@ -4,7 +4,10 @@ import uuid
 from fastapi import BackgroundTasks, FastAPI, HTTPException
 from fastapi.responses import FileResponse, Response, StreamingResponse
 from pydantic import BaseModel, Field, UUID4
+from typing import Literal
+from datetime import datetime
 from contextlib import asynccontextmanager
+from textwrap import dedent # for fastAPI formatting of multi-line strings
     
 
 from database import init_db, create_job, set_job, get_job
@@ -23,28 +26,84 @@ async def lifespan(app: FastAPI):
     init_db() # Before the app starts
     yield # This is where the app runs
     # Nothing happens on app shutdown, since I am not using a database connection pool.
-app = FastAPI(lifespan=lifespan)
 
+app = FastAPI(
+    lifespan=lifespan,
+    title="Create Ringtone API",
+    description="""
+Generate personalized ringtones using text-to-speech.
 
-class CreateRingtoneRequest(BaseModel):
-    receiver: str = Field(min_length=1)
-    caller: str = Field(min_length=1)
-    voice_id: str = Field(min_length=1)
-    clip_id: str = Field(min_length=1)
-    job_id: UUID4 | None = None
+## Workflow
+
+1. `GET /voices` — Retrieve available voices and clips.
+2. `GET /voice-preview` — Preview a selected voice clip.
+3. `POST /generate` — Submit a ringtone generation job.
+4. `GET /status/{job_id}` — Monitor generation progress.
+5. `GET /download/{job_id}` — Download the completed WAV file.
+
+Generation is asynchronous. Jobs transition through
+`queued`, `running`, and either `done` or `failed`.
+
+A client may provide its own UUID4 job ID to prevent duplicate submissions.
+""",
+)
+
+class CreateRingtoneRequest(BaseModel): # the following is nice for docs
+    receiver: str = Field(
+        min_length=1,
+        description="Name of the person receiving the call.",
+        examples=["Viktor"],
+    )
+    caller: str = Field(
+        min_length=1,
+        description="Name of the person calling.",
+        examples=["John"],
+    )
+    voice_id: str = Field(
+        min_length=1,
+        description="Voice ID returned by GET /voices.",
+        examples=["seth_rogan"],
+    )
+    clip_id: str = Field(
+        min_length=1,
+        description="Clip ID returned by GET /voices.",
+        examples=["clip1.wav"],
+    )
+    job_id: UUID4 | None = Field(
+        default=None,
+        description="Optional UUID4. Reusing an existing ID returns the existing job.",
+    )
+
 
 # ---------------------------------------------------------------------------
 # API
 # ---------------------------------------------------------------------------
-@app.post("/generate", status_code=202)
-def generate(request: CreateRingtoneRequest, background_tasks: BackgroundTasks):
-    """
-    Start ringtone creation and immediately return an API job ID.
-    This creates a background task, so it is important to lock threads
-    when getting and setting jobs.
-    """
-    job_id = request.job_id.hex if request.job_id else uuid.uuid4().hex
+@app.post(
+    "/generate",
+    status_code=202,
+    summary="Submit a ringtone generation job",
+    description=dedent("""
+    If a job ID already exists, the original job is returned, even 
+    if the new request contains different parameters.
 
+    **Response (HTTP 202):**
+
+    ```json
+    {
+      "job_id": "32-character hexadecimal UUID",
+      "status": "queued",
+      "status_url": "/status/<job_id>",
+      "download_url": "/download/<job_id>"
+    }
+    ```
+
+    The status may also be `running`, `done`, or `failed` when an existing 
+    job ID is supplied. Please use the `status_url` and `download_url` to 
+    check check if the job is complete and to download the generated ringtone.
+    """),
+)
+def generate(request: CreateRingtoneRequest, background_tasks: BackgroundTasks):
+    job_id = request.job_id.hex if request.job_id else uuid.uuid4().hex
     voice_clip_path = f"{PUBLIC_VOICE_PREFIX}{request.voice_id}/{request.clip_id}"
 
     created = create_job(
@@ -72,8 +131,24 @@ def generate(request: CreateRingtoneRequest, background_tasks: BackgroundTasks):
         "download_url": f"/download/{job_id}",
     }
 
+@app.get(
+    "/status/{job_id}",
+    summary="Get ringtone generation status",
+    description=dedent("""
+    Retrieve the current job status and available metadata.
 
-@app.get("/status/{job_id}")
+    **statuses:** 
+    - `queued`: Waiting to start. Only one job at a time.
+    - `running`: Ringtone generation is in progress.
+    - `done`: The ringtone is ready. Use /download/{job_id} to retrieve it.
+    - `failed`: Generation failed. The `error` field describes the problem.
+
+    
+    
+    Additional fields are included as generation progresses.
+    Failed jobs include the error message in `error`.
+    """),
+)
 def status(job_id: str):
     job = get_job(job_id)
 
@@ -84,15 +159,40 @@ def status(job_id: str):
         )
     return job
 
-@app.get("/voices")
+@app.get(
+    "/voices",
+    summary="List available voices and their associated audio clips",
+    description=dedent("""
+    Returns a JSON object containing a `voices` array.
+    Each voice has an `id`, `name`, and `clips` array.
+    Each clip has an `id` and `name`.
+
+    Use the returned IDs with `/voice-preview` and `/generate`.
+    """),
+)
 def voices():
     return {
         "voices": list_available_voices(),
     }
 
-@app.get("/voice-preview")
+@app.get(
+    "/voice-preview",
+    summary="Preview a voice clip",
+    description=dedent("""
+    Use `voice_id` and `clip_id` values returned by `GET /voices`.
+    Returns WAV or MP3 audio depending on the clip format.
+    """),
+    responses={
+        200: {
+            "description": "Reference audio stream.",
+            "content": {
+                "audio/wav": {},
+                "audio/mpeg": {},
+            },
+        },
+    },
+)
 def voice_preview(voice_id: str, clip_id: str):
-
     voice_clip_path = f"{PUBLIC_VOICE_PREFIX}{voice_id}/{clip_id}"
 
     audio = get_reference_audio_stream(voice_clip_path)
@@ -107,11 +207,16 @@ def voice_preview(voice_id: str, clip_id: str):
         media_type=media_type,
     )
 
-@app.get("/download/{job_id}")
+@app.get(
+    "/download/{job_id}",
+    summary="Download a completed ringtone",
+    description=dedent("""
+    The job must have reached `done` status before downloading.
+
+    succesful responses returns the WAV file (`audio/wav`).
+    """),
+)
 def download(job_id: str):
-    """
-    Download a completed ringtone through the API.
-    """
     job = get_job(job_id)
 
     if job is None:
@@ -141,7 +246,7 @@ def download(job_id: str):
 def health():
     return {"status": "ok"}
 
-@app.get("/")
+@app.get("/", include_in_schema=False)
 def index():
     return FileResponse("static/index.html")
 
