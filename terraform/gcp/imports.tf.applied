@@ -1,0 +1,87 @@
+# ONE-TIME ADOPTION ONLY. Copy to imports.tf, replace the notification ID, then plan/apply.
+# When starting from an empty GCP project, DO NOT copy this file.
+
+import {
+  to = google_project_service.enabled["storage.googleapis.com"]
+  id = "${var.project_id}/storage.googleapis.com"
+}
+
+import {
+  to = google_project_service.enabled["pubsub.googleapis.com"]
+  id = "${var.project_id}/pubsub.googleapis.com"
+}
+
+import {
+  to = google_project_service.enabled["iam.googleapis.com"]
+  id = "${var.project_id}/iam.googleapis.com"
+}
+
+import {
+  to = google_project_service.enabled["iamcredentials.googleapis.com"]
+  id = "${var.project_id}/iamcredentials.googleapis.com"
+}
+
+import {
+  to = google_project_service.enabled["sts.googleapis.com"]
+  id = "${var.project_id}/sts.googleapis.com"
+}
+
+import {
+  to = google_project_service.enabled["cloudresourcemanager.googleapis.com"]
+  id = "${var.project_id}/cloudresourcemanager.googleapis.com"
+}
+
+import {
+  to = google_storage_bucket.voice_upload
+  id = "${var.project_id}/voice-upload-${var.project_id}"
+}
+
+import {
+  to = google_pubsub_topic.voice_upload
+  id = "projects/${var.project_id}/topics/voice-upload"
+}
+
+import {
+  to = google_pubsub_subscription.voice_upload_ingest
+  id = "projects/${var.project_id}/subscriptions/voice-upload-ingest"
+}
+
+import {
+  to = google_storage_notification.voice_upload_finalize
+  id = "voice-upload-${var.project_id}/notificationConfigs/1"
+}
+
+import {
+  to = google_service_account.voice_upload_ingest
+  id = "projects/${var.project_id}/serviceAccounts/voice-upload-ingest@${var.project_id}.iam.gserviceaccount.com"
+}
+
+import {
+  to = google_pubsub_subscription_iam_member.ingest_subscriber
+  id = "projects/${var.project_id}/subscriptions/voice-upload-ingest roles/pubsub.subscriber serviceAccount:voice-upload-ingest@${var.project_id}.iam.gserviceaccount.com"
+}
+
+import {
+  to = google_storage_bucket_iam_member.ingest_object_viewer
+  id = "b/${local.bucket_name} roles/storage.objectViewer serviceAccount:voice-upload-ingest@${var.project_id}.iam.gserviceaccount.com"
+}
+
+import {
+  to = google_pubsub_topic_iam_member.gcs_publisher
+  id = "projects/${var.project_id}/topics/voice-upload roles/pubsub.publisher serviceAccount:service-${data.google_project.current.number}@gs-project-accounts.iam.gserviceaccount.com"
+}
+
+import {
+  to = google_iam_workload_identity_pool.homelab
+  id = "projects/${data.google_project.current.number}/locations/global/workloadIdentityPools/homelab"
+}
+
+import {
+  to = google_iam_workload_identity_pool_provider.k3s
+  id = "projects/${data.google_project.current.number}/locations/global/workloadIdentityPools/homelab/providers/k3s-homelab"
+}
+
+import {
+  to = google_service_account_iam_member.k3s_impersonation
+  id = "projects/${var.project_id}/serviceAccounts/voice-upload-ingest@${var.project_id}.iam.gserviceaccount.com roles/iam.workloadIdentityUser principal://iam.googleapis.com/projects/${data.google_project.current.number}/locations/global/workloadIdentityPools/homelab/subject/${local.ksa_subject}"
+}

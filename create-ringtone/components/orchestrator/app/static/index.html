@@ -123,7 +123,6 @@ form.onsubmit = async event => {
         return;
     }
 
-    status.textContent = `Job ${job.job_id}: ${job.status}`;
     trackJob(job);
 };
 
@@ -131,17 +130,35 @@ function trackJob(job) {
     const timer = setInterval(async () => {
         const response = await fetch(job.status_url);
         const current = await response.json();
+        const lines = [
+            `Job: ${job.job_id}`,
+            `Status: ${current.status}`,
+        ];
 
-        status.textContent = `Job ${job.job_id}: ${current.status}`;
+        if (current.created_at)
+            lines.push(`Created: ${new Date(current.created_at).toLocaleString()}`);
+
+        for (const type of ["llama", "tts"]) {
+            if (current[`${type}_job_id`])
+                lines.push(`${type.toUpperCase()} Job: ${current[`${type}_job_id`]}`);
+
+            if (current[`${type}_status`])
+                lines.push(`${type.toUpperCase()} Status: ${current[`${type}_status`]}`);
+
+            if (current[`${type}_duration_seconds`] != null)
+                lines.push(`${type.toUpperCase()} Duration: ${current[`${type}_duration_seconds`]} seconds`);
+        }
+
+        if (current.error)
+            lines.push(`Error: ${current.error}`);
+
+        status.textContent = lines.join("\n");
 
         if (current.status === "done") {
             clearInterval(timer);
             result.innerHTML = `<a href="${job.download_url}">Download ringtone</a>`;
-        }
-
-        if (current.status === "failed") {
+        } else if (current.status === "failed") {
             clearInterval(timer);
-            status.textContent += `\n${current.error}`;
         }
     }, 2000);
 }

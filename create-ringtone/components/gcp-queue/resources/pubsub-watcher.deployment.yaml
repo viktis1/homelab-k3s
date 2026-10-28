@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: create-ringtone-pubsub-watcher
+
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: create-ringtone-pubsub-watcher
+  template:
+    metadata:
+      labels:
+        app: create-ringtone-pubsub-watcher
+    spec:
+      serviceAccountName: create-ringtone-pubsub-watcher
+      containers:
+        - name: pubsub-watcher
+          image: create-ringtone-pubsub-watcher-image
+          imagePullPolicy: Always
+          command:
+            - python
+            - pubsub_worker.py
+          env:
+            - name: GOOGLE_CLOUD_PROJECT
+              value: ringtone-k8s
+            - name: PUBSUB_SUBSCRIPTION
+              value: ringtone-generate-worker
+            - name: GOOGLE_APPLICATION_CREDENTIALS
+              value: /etc/workload-identity/credential-configuration.json
+            - name: ORCHESTRATOR_URL
+              value: "http://create-ringtone-orchestrator.create-ringtone.svc.viktor.cluster:8000"
+            - name: PYTHONUNBUFFERED
+              value: "1"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: "1000m"
+              memory: 512Mi
+          volumeMounts:
+            - name: gcp-token
+              mountPath: /var/run/service-account
+              readOnly: true
+            - name: gcp-credentials
+              mountPath: /etc/workload-identity
+              readOnly: true
+      volumes:
+        - name: gcp-token
+          projected:
+            sources:
+              - serviceAccountToken:
+                  audience: https://iam.googleapis.com/projects/1094530592033/locations/global/workloadIdentityPools/homelab/providers/k3s-homelab
+                  expirationSeconds: 3600
+                  path: token
+        - name: gcp-credentials
+          configMap:
+            name: pubsub-watcher-credentials
