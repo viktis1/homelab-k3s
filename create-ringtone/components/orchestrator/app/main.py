@@ -10,6 +10,8 @@ import requests
 from botocore.config import Config
 from botocore.exceptions import ClientError
 
+from database import set_job
+
 
 # RustFS is the local object storage. Voice-upload is the bucket for uploaded reference audio.
 RUSTFS_BUCKET_IN = "voice-upload"
@@ -128,32 +130,59 @@ def submit_job(job_type: str, prompt: str, reference_audio_url: str | None = Non
     return job_name
 
 
-def wait_for_result(job_type: str, job_name: str, timeout_seconds: int = 1200):
+
+def wait_for_result(job_id: str, job_type: str, job_name: str, timeout_seconds: int = 1200):
     """
     Poll gpu-orchestrator until the TTS/LLM Job finishes.
+    Store GPU Job status changes in PostgreSQL.
+
     Current gpu-orchestrator behavior:
     - 202 -> pending/running JSON
     - 200 -> completed WAV bytes
     - 500 -> failed JSON
     """
     result_url = f"{GPU_ORCHESTRATOR_URL}/jobs/{job_type}/{job_name}"
-    deadline = time.monotonic() + timeout_seconds
+    start_time = time.monotonic()
+    deadline = start_time + timeout_seconds
+    
+    previous_status = None
 
     while time.monotonic() < deadline:
         response = requests.get(result_url, timeout=(10, 120))
-        if response.status_code == 202:
-            time.sleep(10)
-            continue
-        if response.status_code == 200:
-            if job_type == "tts":
-                return response.content
-            if job_type == "llama":
-                return response.text
-        # response 500 is the orchestrator's failed-job response.
-        raise RuntimeError(f"{job_type} job failed with HTTP {response.status_code}: {response.text}")
-    
-    raise TimeoutError(f"{job_type} Job {job_name} did not finish within {timeout_seconds} seconds.")
 
+        # Determine GPU Job status
+        if response.status_code == 202:
+            status = response.json()["status"]
+        elif response.status_code == 200:
+            status = "completed"
+        else:
+            status = "failed" if response.status_code == 500 else "unknown"
+
+        # Store status changes and duration on completion
+        if status != previous_status:
+            set_job(job_id, {
+                "status": "running",
+                f"{job_type}_status": status,
+                **(
+                    {f"{job_type}_duration_seconds": round(time.monotonic() - start_time, 2)}
+                    if status == "completed" else {}
+                ),
+            })
+            previous_status = status
+
+        # Handle result
+        if response.status_code == 200:
+            return response.content if job_type == "tts" else response.text
+        elif response.status_code != 202:
+            raise RuntimeError(
+                f"{job_type} job failed with HTTP {response.status_code}: {response.text}"
+            )
+        time.sleep(1)
+
+    set_job(job_id, {"status": "running", f"{job_type}_status": "timeout"})
+    raise TimeoutError(
+        f"{job_type} Job {job_name} did not finish within {timeout_seconds} seconds."
+    )
 
 def list_available_voices() -> list[dict]:
     response = s3.list_objects_v2(
@@ -201,7 +230,7 @@ def get_reference_audio_stream(object_key: str):
 # ---------------------------------------------------------------------------
 # Full creation pipeline
 # ---------------------------------------------------------------------------
-def generate_script(receiver: str, caller: str) -> str:
+def generate_script(receiver: str, caller: str, job_id: str)-> str:
     """
     Generate a short ringtone script.
     """
@@ -222,39 +251,55 @@ def generate_script(receiver: str, caller: str) -> str:
         f"{caller} describes their situation calling {receiver}."
     )
     job_name = submit_job("llama", prompt)
-    script = wait_for_result("llama", job_name)
+    set_job(job_id, {
+        "status": "running",
+        "llm_job_id": job_name,
+        "llm_status": "submitted",
+    })
+    script = wait_for_result(
+        job_id,
+        "llama",
+        job_name
+    )
     return script
 
+def create_ringtone(job_id: str, receiver: str, caller: str, voice_clip_path: str):
+    set_job(job_id, {"status": "running"})
+    try:
+        # 1. Generate script using LLM
+        script = generate_script(receiver=receiver, caller=caller, job_id=job_id)
 
-def create_ringtone(receiver: str, caller: str, voice_clip_path: str):
-    """
-    Full first-pass pipeline:
+        # 2. Generate signed URL for reference audio
+        reference_audio_url = create_read_signed_url(voice_clip_path)
 
-    RustFS object
-        -> short-lived signed URL
-        -> gpu-orchestrator
-        -> TTS Kubernetes Job
-        -> WAV returned by gpu-orchestrator
-        -> finished ringtone stored back in RustFS
-    """
-    script = generate_script(
-        receiver=receiver,
-        caller=caller,
-    )
-    reference_audio_url = create_read_signed_url(
-        voice_clip_path
-    )
-    tts_job = submit_job(
-        job_type="tts",
-        prompt=script,
-        reference_audio_url=reference_audio_url,
-    )
-    wav_bytes = wait_for_result("tts", tts_job)
-    output_key = save_ringtone(
-        wav_bytes=wav_bytes,
-        caller=caller,
-    )
-    return tts_job, output_key, script
+        # 3. Submit TTS Job
+        tts_job = submit_job(job_type="tts", prompt=script, reference_audio_url=reference_audio_url)
+        set_job(job_id, {
+            "status": "running",
+            "tts_job_id": tts_job,
+            "tts_status": "submitted",
+        })
+
+        # 4. Wait for TTS result
+        wav_bytes = wait_for_result(job_id, "tts", tts_job)
+        set_job(job_id, {
+            "status": "running",
+            "tts_status": "completed",
+        })
+
+        # 5. Store the ringtone
+        output_key = save_ringtone(wav_bytes=wav_bytes, caller=caller)
+        set_job(job_id, {
+            "status": "done",
+            "output_key": output_key,
+            "script": script,
+        })
+
+    except Exception as exc:
+        set_job(job_id, {
+            "status": "failed",
+            "error": str(exc),
+        })
 
 
 if __name__ == "__main__":

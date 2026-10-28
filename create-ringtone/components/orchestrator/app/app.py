@@ -32,32 +32,6 @@ class CreateRingtoneRequest(BaseModel):
     clip_id: str = Field(min_length=1)
 
 
-
-# ---------------------------------------------------------------------------
-# Background pipeline execution
-# ---------------------------------------------------------------------------
-def run_ringtone_job(job_id: str, request: CreateRingtoneRequest, voice_clip_path: str) -> None:
-    set_job(job_id, {"status": "running"})
-
-    try:
-        tts_job, output_key, script = create_ringtone(
-            receiver=request.receiver,
-            caller=request.caller,
-            voice_clip_path=voice_clip_path,
-        )
-        set_job(
-            job_id,
-            {
-                "status": "done",
-                "tts_job": tts_job,
-                "output_key": output_key,
-                "script": script,
-            },
-        )
-    except Exception as exc:
-        set_job(job_id,{"status":"failed", "error": str(exc)})
-
-
 # ---------------------------------------------------------------------------
 # API
 # ---------------------------------------------------------------------------
@@ -82,9 +56,10 @@ def generate(request: CreateRingtoneRequest, background_tasks: BackgroundTasks):
         },
     )
     background_tasks.add_task(
-        run_ringtone_job,
+        create_ringtone,
         job_id,
-        request,
+        request.receiver,
+        request.caller,
         voice_clip_path,
     )
 
