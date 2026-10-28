@@ -1,36 +1,43 @@
-# Ingestion Pipeline
+# Cloud Ingestion
+This component transfers uploaded audio files from Google Cloud Storage into the homelab's local object storage.
 
-The homelab in this project is behind CGNAT, so the Kubernetes cluster is not exposed directly to the internet. Audio files are therefore uploaded to Google Cloud Storage (GCS) first. When a file is successfully created in the bucket, GCS publishes a notification to Pub/Sub. A worker running in Kubernetes keeps an outbound Pub/Sub connection open. When a notification arrives, the worker downloads the corresponding file from GCS and stores it in the local object storage. 
+Since the homelab operates behind CGNAT, incoming connections from the internet are not directly available. Google Cloud PubSub enables the Kubernetes worker to receive upload notifications through an outbound connection.
+
+## Architecture
 
 ```text
-Edge device
-    | 
-    v
-GCS bucket
-    | 
-    v
-Pub/Sub topic
-    |
-    v
-Pull subscription
-    ^
-    | outbound StreamingPull connection
-    v
-Kubernetes ingest worker
-    |
-    v
+Client
+   |
+   v
+Google Cloud Storage
+   |
+   | Object finalized event
+   v
+Google PubSub
+   | outbound StreamingPull connection
+   v
+Kubernetes Ingest Worker
+   |
+   v
 RustFS
 ```
 
+## How it works
 
-##  GCP setup
+1. A client uploads an audio file to Google Cloud Storage.
+2. GCS publishes an upload notification to PubSub.
+3. The Kubernetes ingest worker receives the notification.
+4. The worker downloads the audio file and stores it in RustFS.
 
-> **Note:** This infrastructure was originally configured manually but has
-> since been migrated to Terraform. I recommend using the Terraform configuration 
-> in [`terraform/gcp/ingestion`](terraform/gcp/ingestion).
->
-> The manual setup instructions are preserved below for reference and for
-> those who prefer configuring GCP resources directly.
+The ingestion worker authenticates to Google Cloud using Workload Identity Federation (WIF), avoiding long-lived Google service account keys.
+
+The required GCP infrastructure is managed through Terraform in `terraform/gcp/`.
+
+
+##  Manual GCP setup (DEPERECATED)
+
+> **Note:** The manual setup instructions are preserved below for reference
+> and for those who prefer configuring GCP resources directly.
 
 
 Create a GCP project before running these commands. The commands below assume that the Google Cloud CLI is installed and authenticated.

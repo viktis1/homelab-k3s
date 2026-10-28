@@ -1,17 +1,39 @@
-# Intention
+# Pub/Sub Generation Queue
 
-This code, together with the infrastructure defined in `terraform/gcp/pubsub-queue.tf`, provides an additional way to request ringtone generation through Google Cloud Pub/Sub.
+This component allows ringtone generation requests to be submitted through Google Cloud Pub/Sub, even when the homelab is offline.
 
-The main advantage is that users can submit ringtone generation requests even when the homelab is offline. Pub/Sub stores the messages until the Kubernetes worker is available to process them.
+Pub/Sub retains messages until the Kubernetes worker is available to process them.
 
-The worker forwards received requests to the existing ringtone orchestrator, monitors their progress, and acknowledges the Pub/Sub messages once generation has completed successfully.
+Infrastructure is managed through `terraform/gcp/pubsub-queue.tf`.
 
-# Missing functionality
 
-This implementation is not quite finished.
+## Architecture
 
-Currently, the Pub/Sub worker can submit jobs and confirm that the resulting WAV files have been stored in RustFS. However, there is no mechanism for the original publisher to retrieve the completed ringtone. This is due to the create-ringtone-orchestrator currently storing job information (IDs, statuses, and output file locations) in an in-memory Python dictionary. 
+### Uploading
+```text
+Client
+   |
+   v
+Google Pub/Sub
+   |
+   v
+Kubernetes Pub/Sub Worker
+   |
+   v
+Ringtone Orchestrator
+```
+Each Pub/Sub message contains the information required to generate a ringtone, including a UUID4 job ID.
 
-## Planned improvements
+The worker forwards the request to the ringtone orchestrator and acknowledges the message once the orchestrator accepts it.
 
-I want to introduce a relational database, most likely PostgreSQL, to persist job metadata and eventually user information. The relevant part of the database for this project is to give users who uploaded pubsubs a way to access their generated ringtones.
+### Downloading 
+
+The original publisher can retrieve the job status and download the completed ringtone using the job ID they created.
+
+## Limitations
+
+Pub/Sub guarantees delivery of generation requests, not successful ringtone generation.
+
+Generation currently relies on FastAPI background tasks, which are not durable across orchestrator restarts.
+
+Client can only download the ringtone when the server is up (which - admittedly - is rare)
