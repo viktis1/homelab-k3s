@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - create-ringtone
     paths:
       - "create-ringtone/components/orchestrator/**"
       - "!create-ringtone/components/orchestrator/kustomization.yaml"

@@ -1,6 +1,7 @@
 import os
 import psycopg
 from psycopg.types.json import Jsonb
+import uuid
 
 
 def connect():
@@ -115,5 +116,34 @@ def get_job(job_id: str) -> dict | None:
     return {
         **details,
         "status": status,
+        "created_at": created_at,
+    }
+
+
+### ------------------------
+### Voice Uploads
+### ------------------------
+def return_voice(voice_uuid: str) -> dict | None:
+    """
+    Retrieve an uploaded voice using its UUID.
+    """
+    with connect() as conn:
+        row = conn.execute(
+            """
+            SELECT uuid, file_path, created_at
+            FROM voice_uploads
+            WHERE uuid = %s
+            """,
+            (uuid.UUID(voice_uuid),),
+        ).fetchone()
+
+    if row is None:
+        return None
+
+    voice_id, file_path, created_at = row
+
+    return {
+        "uuid": str(voice_id),
+        "file_path": file_path,
         "created_at": created_at,
     }

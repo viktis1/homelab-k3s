@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - create-ringtone
     paths:
       - "create-ringtone/components/gcp-queue/**"
       - "!create-ringtone/components/gcp-queue/kustomization.yaml"

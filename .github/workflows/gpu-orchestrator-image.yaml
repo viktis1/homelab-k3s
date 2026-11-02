@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - feature/gpu-orchestrator
     paths:
       - "gpu/gpu-orchestrator/**"
       - "!gpu/gpu-orchestrator/kustomization.yaml"

@@ -16,6 +16,7 @@ spec:
       containers:
         - name: cloud-ingest
           image: cloud-ingest-image
+          imagePullPolicy: Always
           env:
             - name: PYTHONUNBUFFERED
               value: "1"
@@ -40,6 +41,18 @@ spec:
                   key: secret-key
             - name: GOOGLE_APPLICATION_CREDENTIALS
               value: /etc/workload-identity/credential-configuration.json
+            # PostgreSQL connection
+            - name: DB_HOST
+              value: ringtone-postgres
+            - name: DB_NAME
+              value: ringtone
+            - name: DB_USER
+              value: ringtone
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: ringtone-postgres
+                  key: password
           resources:
             requests:
               cpu: 50m

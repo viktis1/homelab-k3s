@@ -1,12 +1,19 @@
 import os
+import uuid
 
 import boto3
 from botocore.config import Config
 from google.cloud import pubsub_v1, storage
 
+from database import init_db, upload_voice
+
 PROJECT = os.environ["GOOGLE_CLOUD_PROJECT"]
 SUBSCRIPTION = os.environ["PUBSUB_SUBSCRIPTION"]
 RUSTFS_BUCKET = os.environ["RUSTFS_BUCKET"]
+
+class InvalidUploadError(Exception):
+    """An upload that cannot be processed."""
+    pass
 
 gcs = storage.Client()
 
@@ -32,13 +39,32 @@ def copy_object(bucket, name, generation):
         name,
         generation=int(generation),
     )
-    data = blob.download_as_bytes() # Download the object from GCS into RAM
+    blob.reload()  # Metadata is not available until the blob is reloaded
+
+    if not name.startswith("famous_people/"):
+        try:
+            voice_uuid = str(uuid.UUID(blob.metadata["uuid"]))
+        except (KeyError, ValueError, TypeError):
+            raise InvalidUploadError(
+                f"Missing or invalid UUID metadata: gs://{bucket}/{name}"
+            )
+
+    data = blob.download_as_bytes() # Download the object from GCS
+    # Upload to RustFS, preserving the user's path
     s3.put_object(
         Bucket=RUSTFS_BUCKET,
         Key=name,
         Body=data,
+        Metadata={"uuid": voice_uuid}
     )
     print(f"Copied gs://{bucket}/{name} -> {RUSTFS_BUCKET}/{name}")
+
+    # Register the recording in PostgreSQL
+
+    # Only personal recordings are registered in PostgreSQL
+    if voice_uuid:
+        upload_voice(voice_uuid, name)
+        print(f"Registered {voice_uuid} in PostgreSQL")
 
 
 def callback(message):
@@ -50,12 +76,16 @@ def callback(message):
             attrs["objectGeneration"], # The object generation comes in the message
         )
         message.ack()
+    except InvalidUploadError as e:
+        print(f"Rejected upload: {e}")
+        message.ack()
     except Exception as e:
         print(f"Transfer failed: {e}")
         message.nack()
 
 
 if __name__ == "__main__":
+    init_db()
     ensure_bucket()
     with pubsub_v1.SubscriberClient() as subscriber:
         subscription = subscriber.subscription_path(PROJECT, SUBSCRIPTION)
