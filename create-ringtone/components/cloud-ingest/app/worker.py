@@ -41,6 +41,7 @@ def copy_object(bucket, name, generation):
     )
     blob.reload()  # Metadata is not available until the blob is reloaded
 
+    voice_uuid = None
     if not name.startswith("famous_people/"):
         try:
             voice_uuid = str(uuid.UUID(blob.metadata["uuid"]))
