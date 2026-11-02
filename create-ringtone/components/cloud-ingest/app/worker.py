@@ -54,8 +54,7 @@ def copy_object(bucket, name, generation):
     s3.put_object(
         Bucket=RUSTFS_BUCKET,
         Key=name,
-        Body=data,
-        Metadata={"uuid": voice_uuid}
+        Body=data
     )
     print(f"Copied gs://{bucket}/{name} -> {RUSTFS_BUCKET}/{name}")
 
