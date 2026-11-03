@@ -7,7 +7,6 @@ terraform {
       source  = "hashicorp/google"
       version = "~> 6.0"
     }
-
     google-beta = {
       source  = "hashicorp/google-beta"
       version = "~> 6.0"
@@ -38,6 +37,8 @@ resource "google_project_service" "enabled" {
     "iamcredentials.googleapis.com",
     "sts.googleapis.com",
     "cloudresourcemanager.googleapis.com",
+    "firebase.googleapis.com",
+    "identitytoolkit.googleapis.com",
   ])
 
   project            = var.project_id
@@ -52,14 +53,14 @@ resource "google_storage_bucket" "voice_upload" {
   uniform_bucket_level_access = true
   force_destroy               = false
 
-  depends_on = [google_project_service.enabled["storage.googleapis.com"]]
+  # depends_on = [google_project_service.enabled["storage.googleapis.com"]]
 }
 
 resource "google_pubsub_topic" "voice_upload" {
   name    = "voice-upload"
   project = var.project_id
 
-  depends_on = [google_project_service.enabled["pubsub.googleapis.com"]]
+  # depends_on = [google_project_service.enabled["pubsub.googleapis.com"]]
 }
 
 resource "google_pubsub_subscription" "voice_upload_ingest" {
@@ -73,7 +74,7 @@ resource "google_service_account" "voice_upload_ingest" {
   account_id = "voice-upload-ingest"
   project    = var.project_id
 
-  depends_on = [google_project_service.enabled["iam.googleapis.com"]]
+  # depends_on = [google_project_service.enabled["iam.googleapis.com"]]
 }
 
 resource "google_pubsub_subscription_iam_member" "ingest_subscriber" {
@@ -93,7 +94,7 @@ resource "google_storage_bucket_iam_member" "ingest_object_viewer" {
 data "google_storage_project_service_account" "gcs" {
   project = var.project_id
 
-  depends_on = [google_project_service.enabled["storage.googleapis.com"]]
+  # depends_on = [google_project_service.enabled["storage.googleapis.com"]]
 }
 
 resource "google_pubsub_topic_iam_member" "gcs_publisher" {
@@ -108,7 +109,7 @@ resource "google_storage_notification" "voice_upload_finalize" {
   event_types    = ["OBJECT_FINALIZE"]
   payload_format = "JSON_API_V1"
 
-  depends_on = [google_pubsub_topic_iam_member.gcs_publisher]
+  # depends_on = [google_pubsub_topic_iam_member.gcs_publisher]
 }
 
 # WIF for the external k3s cluster. The JWKS is the cluster's PUBLIC keys.
@@ -116,7 +117,7 @@ resource "google_iam_workload_identity_pool" "homelab" {
   workload_identity_pool_id = "homelab"
   display_name              = "Homelab Kubernetes"
 
-  depends_on = [google_project_service.enabled["iam.googleapis.com"]]
+  # depends_on = [google_project_service.enabled["iam.googleapis.com"]]
 }
 
 resource "google_iam_workload_identity_pool_provider" "k3s" {
