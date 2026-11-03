@@ -47,7 +47,6 @@ resource "google_identity_platform_config" "auth" {
 variable "google_oauth_client_id" {
   type = string
 }
-
 variable "google_oauth_client_secret" {
   type      = string
   sensitive = true
@@ -63,4 +62,57 @@ resource "google_identity_platform_default_supported_idp_config" "google" {
   client_secret = var.google_oauth_client_secret
 
   # depends_on = [google_identity_platform_config.auth]
+}
+
+
+# Now we can connect the existing GCS bucket to Firebase Storage
+resource "google_firebase_storage_bucket" "voice_upload" {
+  provider = google-beta
+
+  project   = var.project_id
+  bucket_id = google_storage_bucket.voice_upload.name
+}
+
+# Create a Firebase Storage rule to allow only authenticated users to read/write to their own directory in the bucket.
+resource "google_firebaserules_ruleset" "voice_upload" {
+  provider = google-beta
+  project  = var.project_id
+
+  source {
+    files {
+      name = "storage.rules"
+
+      content = <<-EOT
+        rules_version = '2';
+
+        service firebase.storage {
+          match /b/{bucket}/o {
+            match /users/{userId}/{fileName} {
+              allow create, update: if request.auth != null
+                                    && request.auth.uid == userId
+                                    && request.resource.contentType.matches('audio/.*')
+                                    && request.resource.metadata.keys().hasAll(['uuid']);
+              allow read: if request.auth != null
+                          && request.auth.uid == userId;
+            }
+          }
+        }
+      EOT
+    }
+  }
+
+  depends_on = [google_firebase_storage_bucket.voice_upload]
+}
+
+
+resource "google_firebaserules_release" "voice_upload" {
+  provider = google-beta
+  project  = var.project_id
+
+  name = "firebase.storage/${google_storage_bucket.voice_upload.name}"
+  ruleset_name = "projects/${var.project_id}/rulesets/${google_firebaserules_ruleset.voice_upload.name}"
+
+  lifecycle {
+    replace_triggered_by = [google_firebaserules_ruleset.voice_upload]
+  }
 }

@@ -37,8 +37,11 @@ resource "google_project_service" "enabled" {
     "iamcredentials.googleapis.com",
     "sts.googleapis.com",
     "cloudresourcemanager.googleapis.com",
+    # stuff used in firebase.tf
     "firebase.googleapis.com",
     "identitytoolkit.googleapis.com",
+    "firebasestorage.googleapis.com",
+    "firebaserules.googleapis.com",
   ])
 
   project            = var.project_id
