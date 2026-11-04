@@ -123,7 +123,7 @@ def get_job(job_id: str) -> dict | None:
 ### ------------------------
 ### Voice Uploads
 ### ------------------------
-def return_voice(voice_uuid: str) -> dict | None:
+def return_voice(voice_uuid: str, user_id: str) -> dict | None:
     """
     Retrieve an uploaded voice using its UUID.
     """
@@ -132,9 +132,8 @@ def return_voice(voice_uuid: str) -> dict | None:
             """
             SELECT uuid, file_path, created_at
             FROM voice_uploads
-            WHERE uuid = %s
-            """,
-            (uuid.UUID(voice_uuid),),
+            WHERE uuid = %s and user_id = %s
+            """, (uuid.UUID(voice_uuid), user_id)
         ).fetchone()
 
     if row is None:

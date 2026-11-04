@@ -286,7 +286,7 @@ def download(job_id: str, uid: str = Depends(get_current_user)):
 )
 def get_recording(voice_uuid: str, uid: str = Depends(get_current_user)):
     try:
-        recording = return_voice(voice_uuid)
+        recording = return_voice(voice_uuid, uid)
     except ValueError:
         raise HTTPException(
             status_code=400,

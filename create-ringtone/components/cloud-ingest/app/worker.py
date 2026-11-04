@@ -42,7 +42,12 @@ def copy_object(bucket, name, generation):
     blob.reload()  # Metadata is not available until the blob is reloaded
 
     voice_uuid = None
+    user_id = None
     if not name.startswith("famous_people/"):
+        parts = name.split("/")
+        if len(parts) != 3 or parts[0] != "users":
+            raise InvalidUploadError(f"Invalid upload path: {name}")
+        user_id = parts[1]
         try:
             voice_uuid = str(uuid.UUID(blob.metadata["uuid"]))
         except (KeyError, ValueError, TypeError):
@@ -63,8 +68,8 @@ def copy_object(bucket, name, generation):
 
     # Only personal recordings are registered in PostgreSQL
     if voice_uuid:
-        upload_voice(voice_uuid, name)
-        print(f"Registered {voice_uuid} in PostgreSQL")
+        upload_voice(voice_uuid, user_id, name)
+        print(f"Registered {voice_uuid} for user {user_id} in PostgreSQL")
 
 
 def callback(message):
