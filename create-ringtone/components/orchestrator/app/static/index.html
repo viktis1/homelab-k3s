@@ -83,16 +83,45 @@ async function api(url, options = {}) {
 async function loadVoices() {
     try {
         const response = await api("/voices");
-        if (!response.ok) throw new Error(`Voices: HTTP ${response.status}`);
-        voices = (await response.json()).voices;
-        voice.innerHTML = '<option value="">Choose a voice</option>';
-        for (const item of voices) {
-            const option = document.createElement("option");
-            option.value = item.id;
-            option.textContent = item.name;
-            voice.appendChild(option);
+
+        if (!response.ok) {
+            throw new Error(`Voices: HTTP ${response.status}`);
         }
-    } catch (e) { status.textContent = e.message; }
+
+        const data = await response.json();
+
+        // Convert the backend's grouped object into an array
+        // compatible with the existing dropdown logic.
+        voices = [];
+
+        voice.innerHTML = '<option value="">Choose a voice</option>';
+
+        for (const [category, people] of Object.entries(data)) {
+            const group = document.createElement("optgroup");
+            group.label = category;
+
+            for (const [contact, person] of Object.entries(people)) {
+                const voiceId = `${category}:${contact}`;
+
+                voices.push({
+                    id: voiceId,
+                    name: contact,
+                    clips: person.clips,
+                });
+
+                const option = document.createElement("option");
+                option.value = voiceId;
+                option.textContent = contact;
+
+                group.appendChild(option);
+            }
+
+            voice.appendChild(group);
+        }
+
+    } catch (e) {
+        status.textContent = e.message;
+    }
 }
 
 function clearPreview() {
