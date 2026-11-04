@@ -130,11 +130,19 @@ def generate(
     background_tasks: BackgroundTasks,
     uid: str = Depends(get_current_user),
     ):
+    # 1. Generate a job ID (or use the provided one)
     job_id = request.job_id.hex if request.job_id else uuid.uuid4().hex
-    voice_clip_path = f"{PUBLIC_VOICE_PREFIX}{request.voice_id}/{request.clip_id}"
 
+    # 2. Look up the recording in Postgres.
+    recording = return_voice(request.clip_id, uid)
+    if recording is None:
+        raise HTTPException(status_code=404, detail="Voice clip not found")
+    voice_clip_path = recording["file_path"]
+
+    # 3. Create a job in Postgres. Will return False if the job ID already exists.
     created = create_job(
-        job_id,
+        job_id, 
+        uid,
         {
             "status": "queued",
             "receiver": request.receiver,
@@ -142,6 +150,8 @@ def generate(
             "voice_clip_path": voice_clip_path,
         },
     )
+
+    # 4. If the job was created, start the background task to generate the ringtone.
     if created:
         background_tasks.add_task(
             create_ringtone,
@@ -153,7 +163,7 @@ def generate(
 
     return {
         "job_id": job_id,
-        "status": "queued" if created else get_job(job_id)["status"],
+        "status": "queued" if created else get_job(job_id, uid)["status"],
         "status_url": f"/status/{job_id}",
         "download_url": f"/download/{job_id}",
     }
@@ -249,7 +259,7 @@ def voice_preview(
     """),
 )
 def download(job_id: str, uid: str = Depends(get_current_user)):
-    job = get_job(job_id)
+    job = get_job(job_id, uid)
 
     if job is None:
         raise HTTPException(

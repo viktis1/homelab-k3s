@@ -47,8 +47,13 @@ def create_job(job_id: str, user_id: str, value: dict) -> bool:
     with connect() as conn:
         row = conn.execute(
             """
-            INSERT INTO ringtone_jobs (job_id, status, details, user_id)
-            VALUES (%s, %s, %s)
+            INSERT INTO ringtone_jobs (
+                job_id,
+                status,
+                details,
+                user_id
+            )
+            VALUES (%s, %s, %s, %s)
             ON CONFLICT (job_id) DO NOTHING
             RETURNING job_id
             """,
@@ -130,13 +135,17 @@ def get_job(job_id: str, user_id: str) -> dict | None:
 def return_voice(voice_uuid: str, user_id: str) -> dict | None:
     """
     Retrieve an uploaded voice using its UUID.
+
+    Allow access if:
+    - The recording belongs to the authenticated user.
+    - The recording is public.
     """
     with connect() as conn:
         row = conn.execute(
             """
             SELECT uuid, file_path, created_at
             FROM voice_uploads
-            WHERE uuid = %s and user_id = %s
+            WHERE uuid = %s and (public = TRUE or user_id = %s)
             """, (uuid.UUID(voice_uuid), user_id)
         ).fetchone()
 
