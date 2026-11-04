@@ -93,7 +93,7 @@ def get_current_user(
         raise HTTPException(status_code=401, detail="Invalid Firebase token")
     except firebase_admin.auth.CertificateFetchError:
         raise HTTPException(status_code=503, detail="Authentication unavailable")
-router = APIRouter(Depends(get_current_user)) # Use router for endpoints that require authentication
+router = APIRouter()
 
 
 # ---------------------------------------------------------------------------
@@ -123,7 +123,11 @@ router = APIRouter(Depends(get_current_user)) # Use router for endpoints that re
     check check if the job is complete and to download the generated ringtone.
     """),
 )
-def generate(request: CreateRingtoneRequest, background_tasks: BackgroundTasks):
+def generate(
+    request: CreateRingtoneRequest, 
+    background_tasks: BackgroundTasks,
+    uid: str = Depends(get_current_user),
+    ):
     job_id = request.job_id.hex if request.job_id else uuid.uuid4().hex
     voice_clip_path = f"{PUBLIC_VOICE_PREFIX}{request.voice_id}/{request.clip_id}"
 
@@ -170,7 +174,10 @@ def generate(request: CreateRingtoneRequest, background_tasks: BackgroundTasks):
     Failed jobs include the error message in `error`.
     """),
 )
-def status(job_id: str):
+def status(
+    job_id: str, 
+    uid: str = Depends(get_current_user),
+    ):
     job = get_job(job_id)
 
     if job is None:
@@ -213,7 +220,11 @@ def voices():
         },
     },
 )
-def voice_preview(voice_id: str, clip_id: str):
+def voice_preview(
+    voice_id: str, 
+    clip_id: str,
+    uid: str = Depends(get_current_user),
+    ):
     voice_clip_path = f"{PUBLIC_VOICE_PREFIX}{voice_id}/{clip_id}"
 
     audio = get_reference_audio_stream(voice_clip_path)
@@ -237,7 +248,7 @@ def voice_preview(voice_id: str, clip_id: str):
     succesful responses returns the WAV file (`audio/wav`).
     """),
 )
-def download(job_id: str):
+def download(job_id: str, uid: str = Depends(get_current_user)):
     job = get_job(job_id)
 
     if job is None:
@@ -273,7 +284,7 @@ def download(job_id: str):
     Returns a boolean indicating whether the voice upload exists in the database.
     """),
 )
-def get_recording(voice_uuid: str):
+def get_recording(voice_uuid: str, uid: str = Depends(get_current_user)):
     try:
         recording = return_voice(voice_uuid)
     except ValueError:
