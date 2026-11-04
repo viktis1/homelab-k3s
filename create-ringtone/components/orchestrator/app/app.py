@@ -180,7 +180,7 @@ def status(
     job_id: str, 
     uid: str = Depends(get_current_user),
     ):
-    job = get_job(job_id)
+    job = get_job(job_id, uid) # checks if the user has access to the job. if not, returns None
 
     if job is None:
         raise HTTPException(
