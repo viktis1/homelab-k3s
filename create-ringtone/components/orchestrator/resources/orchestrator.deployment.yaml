@@ -40,6 +40,8 @@ spec:
                 secretKeyRef:
                   name: ringtone-postgres
                   key: password
+            - name: FIREBASE_PROJECT_ID
+              value: ringtone-k8s
           resources:
             requests:
               cpu: "50m"

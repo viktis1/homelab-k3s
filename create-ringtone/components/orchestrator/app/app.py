@@ -1,14 +1,16 @@
 import os
 import uuid
 
-from fastapi import BackgroundTasks, FastAPI, HTTPException
+from fastapi import BackgroundTasks, FastAPI, HTTPException, APIRouter, Depends
 from fastapi.responses import FileResponse, Response, StreamingResponse
 from pydantic import BaseModel, Field, UUID4
 from typing import Literal
 from datetime import datetime
 from contextlib import asynccontextmanager
 from textwrap import dedent # for fastAPI formatting of multi-line strings
-    
+import firebase_admin
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+
 
 from database import init_db, create_job, set_job, get_job, return_voice
 from main import (
@@ -74,11 +76,30 @@ class CreateRingtoneRequest(BaseModel): # the following is nice for docs
         description="Optional UUID4. Reusing an existing ID returns the existing job.",
     )
 
+# create a way to authenticate users with firebase.
+firebase_admin.initialize_app(
+    options={"projectId": os.environ["FIREBASE_PROJECT_ID"]}
+)
+security = HTTPBearer()
+def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+) -> str:
+    try:
+        decoded = firebase_admin.auth.verify_id_token(credentials.credentials)
+        return decoded["uid"]
+    except firebase_admin.auth.ExpiredIdTokenError:
+        raise HTTPException(status_code=401, detail="Token expired")
+    except (firebase_admin.auth.InvalidIdTokenError, ValueError):
+        raise HTTPException(status_code=401, detail="Invalid Firebase token")
+    except firebase_admin.auth.CertificateFetchError:
+        raise HTTPException(status_code=503, detail="Authentication unavailable")
+router = APIRouter(Depends(get_current_user)) # Use router for endpoints that require authentication
+
 
 # ---------------------------------------------------------------------------
 # API
 # ---------------------------------------------------------------------------
-@app.post(
+@router.post(
     "/generate",
     status_code=202,
     summary="Submit a ringtone generation job",
@@ -131,7 +152,7 @@ def generate(request: CreateRingtoneRequest, background_tasks: BackgroundTasks):
         "download_url": f"/download/{job_id}",
     }
 
-@app.get(
+@router.get(
     "/status/{job_id}",
     summary="Get ringtone generation status",
     description=dedent("""
@@ -159,7 +180,7 @@ def status(job_id: str):
         )
     return job
 
-@app.get(
+@router.get(
     "/voices",
     summary="List available voices and their associated audio clips",
     description=dedent("""
@@ -175,7 +196,7 @@ def voices():
         "voices": list_available_voices(),
     }
 
-@app.get(
+@router.get(
     "/voice-preview",
     summary="Preview a voice clip",
     description=dedent("""
@@ -207,7 +228,7 @@ def voice_preview(voice_id: str, clip_id: str):
         media_type=media_type,
     )
 
-@app.get(
+@router.get(
     "/download/{job_id}",
     summary="Download a completed ringtone",
     description=dedent("""
@@ -242,7 +263,7 @@ def download(job_id: str):
     )
 
 
-@app.get(
+@router.get(
     "/check-upload/{voice_uuid}",
     summary="Check if a voice upload has gone through on the server",
     description=dedent("""
@@ -276,6 +297,8 @@ def health():
 @app.get("/", include_in_schema=False)
 def index():
     return FileResponse("static/index.html")
+
+app.include_router(router)
 
 if __name__ == "__main__":
     import uvicorn
