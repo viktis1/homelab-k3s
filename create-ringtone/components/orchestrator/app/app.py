@@ -235,7 +235,7 @@ def voice_preview(
     clip_id: str,
     uid: str = Depends(get_current_user),
     ):
-    voice_clip_path = f"{PUBLIC_VOICE_PREFIX}{voice_id}/{clip_id}"
+    voice_clip_path = return_voice(clip_id, uid)
 
     audio = get_reference_audio_stream(voice_clip_path)
 
