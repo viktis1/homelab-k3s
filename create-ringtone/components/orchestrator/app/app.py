@@ -9,7 +9,9 @@ from datetime import datetime
 from contextlib import asynccontextmanager
 from textwrap import dedent # for fastAPI formatting of multi-line strings
 import firebase_admin
+from firebase_admin import auth
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from google.auth.credentials import AnonymousCredentials
 
 
 from database import init_db, create_job, set_job, get_job, return_voice
@@ -78,20 +80,21 @@ class CreateRingtoneRequest(BaseModel): # the following is nice for docs
 
 # create a way to authenticate users with firebase.
 firebase_admin.initialize_app(
-    options={"projectId": os.environ["FIREBASE_PROJECT_ID"]}
+    AnonymousCredentials(),
+    {"projectId": os.environ["FIREBASE_PROJECT_ID"]}
 )
 security = HTTPBearer()
 def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
 ) -> str:
     try:
-        decoded = firebase_admin.auth.verify_id_token(credentials.credentials)
+        decoded = auth.verify_id_token(credentials.credentials)
         return decoded["uid"]
-    except firebase_admin.auth.ExpiredIdTokenError:
+    except auth.ExpiredIdTokenError:
         raise HTTPException(status_code=401, detail="Token expired")
-    except (firebase_admin.auth.InvalidIdTokenError, ValueError):
+    except (auth.InvalidIdTokenError, ValueError):
         raise HTTPException(status_code=401, detail="Invalid Firebase token")
-    except firebase_admin.auth.CertificateFetchError:
+    except auth.CertificateFetchError:
         raise HTTPException(status_code=503, detail="Authentication unavailable")
 router = APIRouter()
 

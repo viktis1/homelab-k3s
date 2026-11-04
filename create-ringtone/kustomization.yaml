@@ -24,11 +24,11 @@ images:
 
 - name: cloud-ingest-image
   newName: ghcr.io/viktis1/create-ringtone-cloud-ingest
-  newTag: "396defca177b75277a01637f67baac2a030cc5ae"
+  newTag: "88f53104c13f8c5c0da9dca84d677934f40d8e8a"
 
 - name: create-ringtone-orchestrator-image
   newName: ghcr.io/viktis1/create-ringtone-orchestrator
-  newTag: "fa58a7fadc245757bb4773bfabe0ff247c7b2d9e"
+  newTag: "88f53104c13f8c5c0da9dca84d677934f40d8e8a"
 
 - name: create-ringtone-pubsub-watcher-image
   newName: ghcr.io/viktis1/create-ringtone-pubsub-watcher

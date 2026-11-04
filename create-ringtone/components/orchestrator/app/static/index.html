@@ -4,6 +4,10 @@
 
 <h1>Create Ringtone</h1>
 
+<button id="login">Sign in with Google</button>
+<button id="logout" hidden>Sign out</button>
+<span id="account"></span>
+
 <form id="form">
     <label>Receiver</label><br>
     <input name="receiver" required><br><br>
@@ -29,136 +33,165 @@
 <pre id="status"></pre>
 <div id="result"></div>
 
-<script>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-app.js";
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-auth.js";
+
+const auth = getAuth(initializeApp({
+    apiKey: "AIzaSyCXuWoOAjMPqJ19VR3-yPqIPJgEEXDlCuU",
+    authDomain: "ringtone-k8s.firebaseapp.com",
+    projectId: "ringtone-k8s",
+    appId: "1:1094530592033:web:248437da5ced0cdd946260",
+}));
 const form = document.getElementById("form");
 const status = document.getElementById("status");
 const result = document.getElementById("result");
 const voice = document.getElementById("voice");
 const clip = document.getElementById("clip");
 const preview = document.getElementById("preview");
-
-
 let voices = [];
+let timer;
+let previewUrl;
 
-async function loadVoices() {
-    const response = await fetch("/voices");
-    const data = await response.json();
+// Firebase keeps the login across page reloads and refreshes tokens automatically.
+document.getElementById("login").onclick = () =>
+    signInWithPopup(auth, new GoogleAuthProvider()).catch(e => status.textContent = e.message);
+document.getElementById("logout").onclick = () => signOut(auth);
 
-    voices = data.voices;
-
-    voice.innerHTML = '<option value="">Choose a voice</option>';
-
-    for (const item of voices) {
-        const option = document.createElement("option");
-        option.value = item.id;
-        option.textContent = item.name;
-        voice.appendChild(option);
+onAuthStateChanged(auth, user => {
+    document.getElementById("login").hidden = !!user;
+    document.getElementById("logout").hidden = !user;
+    document.getElementById("account").textContent = user?.email || "";
+    form.hidden = !user;
+    if (user) loadVoices();
+    else {
+        clearInterval(timer);
+        clearPreview();
+        result.innerHTML = "";
+        status.textContent = "";
     }
+});
+
+async function api(url, options = {}) {
+    if (!auth.currentUser) throw new Error("Sign in first");
+    return fetch(url, {
+        ...options,
+        headers: { ...options.headers, Authorization: `Bearer ${await auth.currentUser.getIdToken()}` },
+    });
 }
 
-voice.onchange = () => {
+async function loadVoices() {
+    try {
+        const response = await api("/voices");
+        if (!response.ok) throw new Error(`Voices: HTTP ${response.status}`);
+        voices = (await response.json()).voices;
+        voice.innerHTML = '<option value="">Choose a voice</option>';
+        for (const item of voices) {
+            const option = document.createElement("option");
+            option.value = item.id;
+            option.textContent = item.name;
+            voice.appendChild(option);
+        }
+    } catch (e) { status.textContent = e.message; }
+}
+
+function clearPreview() {
     preview.pause();
     preview.removeAttribute("src");
     preview.load();
     preview.hidden = true;
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    previewUrl = null;
+}
 
-    const selectedVoice = voices.find(
-        item => item.id === voice.value
-    );
-
+voice.onchange = () => {
+    clearPreview();
+    const selectedVoice = voices.find(item => item.id === voice.value);
     clip.innerHTML = '<option value="">Choose a clip</option>';
-
-    if (!selectedVoice) {
-        clip.disabled = true;
-        return;
-    }
-
+    clip.disabled = !selectedVoice;
+    if (!selectedVoice) return;
     for (const item of selectedVoice.clips) {
         const option = document.createElement("option");
         option.value = item.id;
         option.textContent = item.name;
         clip.appendChild(option);
     }
-
-    clip.disabled = false;
 };
 
-clip.onchange = () => {
-    preview.pause();
-    preview.removeAttribute("src");
-    preview.load();
-
-    if (!voice.value || !clip.value) {
-        preview.hidden = true;
-        return;
-    }
-
-    const params = new URLSearchParams({
-        voice_id: voice.value,
-        clip_id: clip.value,
-    });
-
-    preview.src = `/voice-preview?${params}`;
-    preview.hidden = false;
+clip.onchange = async () => {
+    clearPreview();
+    if (!voice.value || !clip.value) return;
+    const params = new URLSearchParams({ voice_id: voice.value, clip_id: clip.value });
+    try {
+        const response = await api(`/voice-preview?${params}`);
+        if (!response.ok) throw new Error(`Preview: HTTP ${response.status}`);
+        previewUrl = URL.createObjectURL(await response.blob());
+        preview.src = previewUrl;
+        preview.hidden = false;
+    } catch (e) { status.textContent = e.message; }
 };
-
-loadVoices();
 
 form.onsubmit = async event => {
     event.preventDefault();
-
     status.textContent = "Submitting...";
     result.innerHTML = "";
-
-    const response = await fetch("/generate", {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify(Object.fromEntries(new FormData(form)))
-    });
-
-    const job = await response.json();
-
-    if (!response.ok) {
-        status.textContent = JSON.stringify(job);
-        return;
-    }
-
-    trackJob(job);
+    try {
+        const response = await api("/generate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(Object.fromEntries(new FormData(form))),
+        });
+        const job = await response.json();
+        if (!response.ok) throw new Error(JSON.stringify(job));
+        trackJob(job);
+    } catch (e) { status.textContent = e.message; }
 };
 
 function trackJob(job) {
-    const timer = setInterval(async () => {
-        const response = await fetch(job.status_url);
-        const current = await response.json();
-        const lines = [
-            `Job: ${job.job_id}`,
-            `Status: ${current.status}`,
-        ];
+    clearInterval(timer);
+    timer = setInterval(async () => {
+        try {
+            const response = await api(job.status_url);
+            if (!response.ok) throw new Error(`Status: HTTP ${response.status}`);
+            const current = await response.json();
+            const lines = [
+                `Job: ${job.job_id}`,
+                `Status: ${current.status}`,
+            ];
+            if (current.created_at)
+                lines.push(`Created: ${new Date(current.created_at).toLocaleString()}`);
+            for (const type of ["llama", "tts"]) {
+                if (current[`${type}_job_id`])
+                    lines.push(`${type.toUpperCase()} Job: ${current[`${type}_job_id`]}`);
+                if (current[`${type}_status`])
+                    lines.push(`${type.toUpperCase()} Status: ${current[`${type}_status`]}`);
+                if (current[`${type}_duration_seconds`] != null)
+                    lines.push(`${type.toUpperCase()} Duration: ${current[`${type}_duration_seconds`]} seconds`);
+            }
+            if (current.error) lines.push(`Error: ${current.error}`);
+            status.textContent = lines.join("\n");
 
-        if (current.created_at)
-            lines.push(`Created: ${new Date(current.created_at).toLocaleString()}`);
-
-        for (const type of ["llama", "tts"]) {
-            if (current[`${type}_job_id`])
-                lines.push(`${type.toUpperCase()} Job: ${current[`${type}_job_id`]}`);
-
-            if (current[`${type}_status`])
-                lines.push(`${type.toUpperCase()} Status: ${current[`${type}_status`]}`);
-
-            if (current[`${type}_duration_seconds`] != null)
-                lines.push(`${type.toUpperCase()} Duration: ${current[`${type}_duration_seconds`]} seconds`);
-        }
-
-        if (current.error)
-            lines.push(`Error: ${current.error}`);
-
-        status.textContent = lines.join("\n");
-
-        if (current.status === "done") {
+            if (current.status === "done") {
+                clearInterval(timer);
+                result.innerHTML = '<button id="download">Download ringtone</button>';
+                document.getElementById("download").onclick = async () => {
+                    try {
+                        const response = await api(job.download_url);
+                        if (!response.ok) throw new Error(`Download: HTTP ${response.status}`);
+                        const url = URL.createObjectURL(await response.blob());
+                        const a = document.createElement("a");
+                        a.href = url;
+                        a.download = `ringtone-${job.job_id}.wav`;
+                        a.click();
+                        setTimeout(() => URL.revokeObjectURL(url), 1000);
+                    } catch (e) { status.textContent = e.message; }
+                };
+            } else if (current.status === "failed") {
+                clearInterval(timer);
+            }
+        } catch (e) {
             clearInterval(timer);
-            result.innerHTML = `<a href="${job.download_url}">Download ringtone</a>`;
-        } else if (current.status === "failed") {
-            clearInterval(timer);
+            status.textContent = e.message;
         }
     }, 2000);
 }
