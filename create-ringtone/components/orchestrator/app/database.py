@@ -146,3 +146,33 @@ def return_voice(voice_uuid: str, user_id: str) -> dict | None:
         "file_path": file_path,
         "created_at": created_at,
     }
+
+
+def list_user_voices(user_id: str) -> list[dict]:
+    with connect() as conn:
+        rows = conn.execute(
+            """
+            SELECT uuid, contact, created_at
+            FROM voice_uploads
+            WHERE user_id = %s
+            ORDER BY contact, created_at DESC
+            """,
+            (user_id,),
+        ).fetchall()
+
+    voices = {}
+
+    for voice_uuid, contact, created_at in rows:
+        voice = voices.setdefault(contact, {
+            "id": f"user:{contact}",
+            "name": contact,
+            "source": "personal",
+            "clips": [],
+        })
+
+        voice["clips"].append({
+            "id": str(voice_uuid),
+            "name": created_at.isoformat(),
+        })
+
+    return list(voices.values())
