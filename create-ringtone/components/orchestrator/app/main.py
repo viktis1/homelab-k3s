@@ -184,37 +184,6 @@ def wait_for_result(job_id: str, job_type: str, job_name: str, timeout_seconds: 
         f"{job_type} Job {job_name} did not finish within {timeout_seconds} seconds."
     )
 
-def list_available_voices() -> list[dict]:
-    response = s3.list_objects_v2(
-        Bucket=RUSTFS_BUCKET_IN,
-        Prefix=PUBLIC_VOICE_PREFIX,
-    )
-    voices = {}
-    for obj in response.get("Contents", []):
-        key = obj["Key"]
-        path = PurePosixPath(key)
-        if path.suffix.lower() not in AUDIO_EXTENSIONS:
-            continue
-        # famous_people/seth_rogan/clip1.wav
-        _, voice_id, filename = path.parts # this will fail if the path is not exactly 3 parts...
-        # Create the voice entry if it does not exist, and append the clip to the list of clips for that voice.
-        voices.setdefault(voice_id,
-            {
-                "id": voice_id,
-                "name": voice_id.replace("_", " ").title(),
-                "clips": [],
-            },
-        )
-        voices[voice_id]["clips"].append({
-            "id": filename,
-            "name": path.stem,
-        })
-    return sorted(
-        voices.values(),
-        key=lambda voice: voice["name"].lower(),
-    )
-
-
 
 def get_reference_audio_stream(object_key: str):
     """

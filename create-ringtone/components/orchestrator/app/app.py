@@ -14,11 +14,10 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from google.auth.credentials import AnonymousCredentials
 
 
-from database import init_db, create_job, set_job, get_job, return_voice
+from database import init_db, create_job, set_job, get_job, return_voice, list_user_voices
 from main import (
     create_ringtone,
     get_object_bytes,
-    list_available_voices,
     get_reference_audio_stream,
     PUBLIC_VOICE_PREFIX
 )
@@ -201,10 +200,8 @@ def status(
     Use the returned IDs with `/voice-preview` and `/generate`.
     """),
 )
-def voices():
-    return {
-        "voices": list_available_voices(),
-    }
+def voices(uid: str = Depends(get_current_user)):
+    return list_user_voices(uid)
 
 @router.get(
     "/voice-preview",

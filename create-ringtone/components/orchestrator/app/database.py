@@ -148,31 +148,35 @@ def return_voice(voice_uuid: str, user_id: str) -> dict | None:
     }
 
 
-def list_user_voices(user_id: str) -> list[dict]:
+def list_user_voices(user_id: str) -> dict:
     with connect() as conn:
         rows = conn.execute(
             """
-            SELECT uuid, contact, created_at
+            SELECT uuid, file_name, public, contact, created_at
             FROM voice_uploads
-            WHERE user_id = %s
+            WHERE user_id = %s OR public = TRUE
             ORDER BY contact, created_at DESC
             """,
             (user_id,),
         ).fetchall()
 
-    voices = {}
+    voices = {
+        "Public": {},
+        "Your Uploads": {},
+    }
 
-    for voice_uuid, contact, created_at in rows:
-        voice = voices.setdefault(contact, {
-            "id": f"user:{contact}",
-            "name": contact,
-            "source": "personal",
+    for voice_uuid, file_name, public, contact, created_at in rows:
+        source = "Public" if public else "Your Uploads"
+
+        # Create the person if they don't exist
+        person = voices[source].setdefault(contact, {
             "clips": [],
         })
 
-        voice["clips"].append({
+        # Append the recording
+        person["clips"].append({
             "id": str(voice_uuid),
-            "name": created_at.isoformat(),
+            "name": file_name,
         })
 
-    return list(voices.values())
+    return voices

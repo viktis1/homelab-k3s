@@ -49,6 +49,7 @@ def copy_object(bucket, name, generation):
         user_id = None
         voice_name = gcs_path.parent.name
         rustfs_path = f"famous_people/{voice_name}/{voice_uuid}{gcs_path.suffix}"
+        public = True
     else:
         # Personal recordings: UUID supplied by Android client
         parts = name.split("/")
@@ -63,6 +64,7 @@ def copy_object(bucket, name, generation):
                 f"Missing or invalid UUID metadata: gs://{bucket}/{name}"
             )
         rustfs_path = f"users/{user_id}/{voice_uuid}{gcs_path.suffix}"
+        public = False
 
     # Copy recording from GCS to RustFS
     data = blob.download_as_bytes()
@@ -77,8 +79,9 @@ def copy_object(bucket, name, generation):
     upload_voice(
         voice_uuid=voice_uuid,
         user_id=user_id,
-        voice_name=voice_name,
+        contact=voice_name,
         file_path=rustfs_path,
+        public=public,
     )
     print(f"Registered voice-upload {voice_uuid}({voice_name}, user={user_id})")
 
