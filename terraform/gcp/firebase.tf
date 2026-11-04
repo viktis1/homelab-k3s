@@ -6,7 +6,29 @@ resource "google_firebase_project" "default" {
   # depends_on = [google_project_service.enabled["firebase.googleapis.com"]]
 }
 
+# Web app for login.
+resource "google_firebase_web_app" "ringtone" {
+  provider     = google-beta
+  project      = google_firebase_project.default.project
+  display_name = "Ringtone Goofer Web"
+}
 
+data "google_firebase_web_app_config" "ringtone" {
+  provider   = google-beta
+  project    = var.project_id
+  web_app_id = google_firebase_web_app.ringtone.app_id
+}
+
+output "firebase_web_config" {
+  value = {
+    apiKey     = data.google_firebase_web_app_config.ringtone.api_key
+    authDomain = data.google_firebase_web_app_config.ringtone.auth_domain
+    projectId  = var.project_id
+    appId      = google_firebase_web_app.ringtone.app_id
+  }
+}
+
+# Android app for login.
 resource "google_firebase_android_app" "ringtone" {
   provider = google-beta
 
@@ -23,6 +45,12 @@ resource "google_firebase_android_app" "ringtone" {
 resource "google_identity_platform_config" "auth" {
   provider = google-beta
   project  = google_firebase_project.default.project
+
+  authorized_domains = [
+    "ringtone-k8s.firebaseapp.com",
+    "ringtone-k8s.web.app",
+    "create-ringtone.viktor-homelab.cloud",
+  ]
 
   # depends_on = [google_project_service.enabled["identitytoolkit.googleapis.com"]]
 }
