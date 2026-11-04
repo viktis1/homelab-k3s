@@ -242,7 +242,6 @@ def download(job_id: str):
     )
 
 
-@app.get("/recordings/{voice_uuid}")
 @app.get(
     "/check-upload/{voice_uuid}",
     summary="Check if a voice upload has gone through on the server",
