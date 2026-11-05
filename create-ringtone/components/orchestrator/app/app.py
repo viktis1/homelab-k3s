@@ -284,34 +284,6 @@ def download(job_id: str, uid: str = Depends(get_current_user)):
         },
     )
 
-
-@router.get(
-    "/check-upload/{voice_uuid}",
-    summary="Check if a voice upload has gone through on the server",
-    description=dedent("""
-    When uploading a voice recording, the client uploads to GCP and then the server copies it to RustFS and registers it in PostgreSQL.
-    To check if the upload has been registered, call this endpoint with the UUID (clint generates the UUID) of the voice recording.
-
-    Returns a boolean indicating whether the voice upload exists in the database.
-    """),
-)
-def get_recording(voice_uuid: str, uid: str = Depends(get_current_user)):
-    try:
-        recording = return_voice(voice_uuid, uid)
-    except ValueError:
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid UUID"
-        )
-
-    if recording is None:
-        raise HTTPException(
-            status_code=404,
-            detail="Recording not found"
-        )
-
-    return recording
-
 @app.get("/health")
 def health():
     return {"status": "ok"}
