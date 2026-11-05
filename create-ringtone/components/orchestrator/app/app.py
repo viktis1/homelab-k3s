@@ -1,7 +1,7 @@
 import os
 import uuid
 
-from fastapi import BackgroundTasks, FastAPI, HTTPException, APIRouter, Depends
+from fastapi import BackgroundTasks, FastAPI, HTTPException, APIRouter, Depends, Request
 from fastapi.responses import FileResponse, Response, StreamingResponse
 from pydantic import BaseModel, Field, UUID4
 from typing import Literal
@@ -12,6 +12,7 @@ import firebase_admin
 from firebase_admin import auth
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from google.auth.credentials import AnonymousCredentials
+import secrets
 
 
 from database import init_db, create_job, set_job, get_job, return_voice, list_user_voices
@@ -97,6 +98,27 @@ def get_current_user(
         raise HTTPException(status_code=503, detail="Authentication unavailable")
 router = APIRouter()
 
+optional_security = HTTPBearer(auto_error=False)
+
+def get_generation_uid(
+    request: Request,
+    credentials: HTTPAuthorizationCredentials | None = Depends(optional_security),
+) -> str:
+    # Trusted internal worker
+    worker_token = request.headers.get("X-Worker-Token")
+    if worker_token is not None:
+        expected = os.environ["INTERNAL_WORKER_TOKEN"]
+        if not secrets.compare_digest(worker_token, expected):
+            raise HTTPException(status_code=401, detail="Invalid worker token")
+        uid = request.headers.get("X-User-ID")
+        if not uid:
+            raise HTTPException(status_code=400, detail="Missing user ID")
+        return uid
+    # Normal Firebase user
+    if credentials is None:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    return get_current_user(credentials)
+
 
 # ---------------------------------------------------------------------------
 # API
@@ -128,7 +150,7 @@ router = APIRouter()
 def generate(
     request: CreateRingtoneRequest, 
     background_tasks: BackgroundTasks,
-    uid: str = Depends(get_current_user),
+    uid: str = Depends(get_generation_uid),
     ):
     # 1. Generate a job ID (or use the provided one)
     job_id = request.job_id.hex if request.job_id else uuid.uuid4().hex

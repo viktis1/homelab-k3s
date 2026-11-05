@@ -42,6 +42,12 @@ spec:
                   key: password
             - name: FIREBASE_PROJECT_ID
               value: ringtone-k8s
+            # Internal worker "trust me, I am not a thief"
+            - name: INTERNAL_WORKER_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: ringtone-worker-auth
+                  key: token
           resources:
             requests:
               cpu: "50m"

@@ -11,15 +11,19 @@ SUBSCRIPTION = os.environ["PUBSUB_SUBSCRIPTION"]
 
 ORCHESTRATOR_URL = os.environ["ORCHESTRATOR_URL"]
 
-
 def callback(message):
     try:
         # Decode the message received from Pub/Sub.
         payload = json.loads(message.data.decode("utf-8"))
+        uid = payload.pop("uid") # User ID is sent in the payload and trusted, since pubsubs should be authenticated and authorized.
         # Submit the job to the create-ringtone orchestrator.
         response = requests.post(
             f"{ORCHESTRATOR_URL}/generate",
             json=payload,
+            headers={
+                "X-Worker-Token": os.environ["INTERNAL_WORKER_TOKEN"],
+                "X-User-ID": uid,
+            },
             timeout=30,
         )
         response.raise_for_status()
