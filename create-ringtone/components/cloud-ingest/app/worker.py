@@ -1,5 +1,6 @@
 import os
 import uuid
+from pathlib import PurePosixPath
 
 import boto3
 from botocore.config import Config
@@ -41,30 +42,48 @@ def copy_object(bucket, name, generation):
     )
     blob.reload()  # Metadata is not available until the blob is reloaded
 
-    voice_uuid = None
-    if not name.startswith("famous_people/"):
+    gcs_path = PurePosixPath(name)
+    if name.startswith("famous_people/"):
+        # Public recordings: deterministic UUID from original path
+        voice_uuid = str(uuid.uuid5(uuid.NAMESPACE_URL, f"ringtone:{name}"))
+        user_id = None
+        voice_name = gcs_path.parent.name
+        rustfs_path = f"famous_people/{voice_name}/{voice_uuid}{gcs_path.suffix}"
+        public = True
+    else:
+        # Personal recordings: UUID supplied by Android client
+        parts = name.split("/")
+        if len(parts) != 3 or parts[0] != "users":
+            raise InvalidUploadError(f"Invalid upload path: {name}")
+        user_id = parts[1]
+        voice_name = gcs_path.stem
         try:
             voice_uuid = str(uuid.UUID(blob.metadata["uuid"]))
         except (KeyError, ValueError, TypeError):
             raise InvalidUploadError(
                 f"Missing or invalid UUID metadata: gs://{bucket}/{name}"
             )
+        rustfs_path = f"users/{user_id}/{voice_uuid}{gcs_path.suffix}"
+        public = False
 
-    data = blob.download_as_bytes() # Download the object from GCS
-    # Upload to RustFS, preserving the user's path
+    # Copy recording from GCS to RustFS
+    data = blob.download_as_bytes()
     s3.put_object(
         Bucket=RUSTFS_BUCKET,
-        Key=name,
-        Body=data
+        Key=rustfs_path,
+        Body=data,
     )
     print(f"Copied gs://{bucket}/{name} -> {RUSTFS_BUCKET}/{name}")
 
-    # Register the recording in PostgreSQL
-
-    # Only personal recordings are registered in PostgreSQL
-    if voice_uuid:
-        upload_voice(voice_uuid, name)
-        print(f"Registered {voice_uuid} in PostgreSQL")
+    # Register the RustFS location in PostgreSQL
+    upload_voice(
+        voice_uuid=voice_uuid,
+        user_id=user_id,
+        contact=voice_name,
+        file_path=rustfs_path,
+        public=public,
+    )
+    print(f"Registered voice-upload {voice_uuid}({voice_name}, user={user_id})")
 
 
 def callback(message):

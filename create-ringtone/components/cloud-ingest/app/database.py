@@ -25,13 +25,23 @@ def init_db():
         conn.execute("""
             CREATE TABLE IF NOT EXISTS voice_uploads (
                 uuid UUID PRIMARY KEY,
+                user_id TEXT,
+                contact TEXT NOT NULL,
                 file_path TEXT NOT NULL,
+                public BOOLEAN NOT NULL DEFAULT FALSE,
                 created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
             )
         """)
 
 
-def upload_voice(voice_uuid: str, file_path: str) -> bool:
+
+def upload_voice(
+        voice_uuid: str,  
+        user_id: str | None, 
+        contact: str, 
+        public: bool,
+        file_path: str
+        ) -> bool:
     """
     Register an uploaded voice.
 
@@ -40,12 +50,12 @@ def upload_voice(voice_uuid: str, file_path: str) -> bool:
     with connect() as conn:
         row = conn.execute(
             """
-            INSERT INTO voice_uploads (uuid, file_path)
-            VALUES (%s, %s)
+            INSERT INTO voice_uploads (uuid, user_id, contact, file_path, public)
+            VALUES (%s, %s, %s, %s, %s)
             ON CONFLICT (uuid) DO NOTHING
             RETURNING uuid
             """,
-            (uuid.UUID(voice_uuid), file_path),
+            (uuid.UUID(voice_uuid), user_id, contact, file_path, public),
         ).fetchone()
 
     return row is not None

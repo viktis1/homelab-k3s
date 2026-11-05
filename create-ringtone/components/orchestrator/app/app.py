@@ -1,20 +1,24 @@
 import os
 import uuid
 
-from fastapi import BackgroundTasks, FastAPI, HTTPException
+from fastapi import BackgroundTasks, FastAPI, HTTPException, APIRouter, Depends, Request
 from fastapi.responses import FileResponse, Response, StreamingResponse
 from pydantic import BaseModel, Field, UUID4
 from typing import Literal
 from datetime import datetime
 from contextlib import asynccontextmanager
 from textwrap import dedent # for fastAPI formatting of multi-line strings
-    
+import firebase_admin
+from firebase_admin import auth
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from google.auth.credentials import AnonymousCredentials
+import secrets
 
-from database import init_db, create_job, set_job, get_job, return_voice
+
+from database import init_db, create_job, set_job, get_job, return_voice, list_user_voices
 from main import (
     create_ringtone,
     get_object_bytes,
-    list_available_voices,
     get_reference_audio_stream,
     PUBLIC_VOICE_PREFIX
 )
@@ -74,11 +78,52 @@ class CreateRingtoneRequest(BaseModel): # the following is nice for docs
         description="Optional UUID4. Reusing an existing ID returns the existing job.",
     )
 
+# create a way to authenticate users with firebase.
+firebase_admin.initialize_app(
+    AnonymousCredentials(),
+    {"projectId": os.environ["FIREBASE_PROJECT_ID"]}
+)
+security = HTTPBearer()
+def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+) -> str:
+    try:
+        decoded = auth.verify_id_token(credentials.credentials)
+        return decoded["uid"]
+    except auth.ExpiredIdTokenError:
+        raise HTTPException(status_code=401, detail="Token expired")
+    except (auth.InvalidIdTokenError, ValueError):
+        raise HTTPException(status_code=401, detail="Invalid Firebase token")
+    except auth.CertificateFetchError:
+        raise HTTPException(status_code=503, detail="Authentication unavailable")
+router = APIRouter()
+
+optional_security = HTTPBearer(auto_error=False)
+
+def get_generation_uid(
+    request: Request,
+    credentials: HTTPAuthorizationCredentials | None = Depends(optional_security),
+) -> str:
+    # Trusted internal worker
+    worker_token = request.headers.get("X-Worker-Token")
+    if worker_token is not None:
+        expected = os.environ["INTERNAL_WORKER_TOKEN"]
+        if not secrets.compare_digest(worker_token, expected):
+            raise HTTPException(status_code=401, detail="Invalid worker token")
+        uid = request.headers.get("X-User-ID")
+        if not uid:
+            raise HTTPException(status_code=400, detail="Missing user ID")
+        return uid
+    # Normal Firebase user
+    if credentials is None:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    return get_current_user(credentials)
+
 
 # ---------------------------------------------------------------------------
 # API
 # ---------------------------------------------------------------------------
-@app.post(
+@router.post(
     "/generate",
     status_code=202,
     summary="Submit a ringtone generation job",
@@ -102,12 +147,24 @@ class CreateRingtoneRequest(BaseModel): # the following is nice for docs
     check check if the job is complete and to download the generated ringtone.
     """),
 )
-def generate(request: CreateRingtoneRequest, background_tasks: BackgroundTasks):
+def generate(
+    request: CreateRingtoneRequest, 
+    background_tasks: BackgroundTasks,
+    uid: str = Depends(get_generation_uid),
+    ):
+    # 1. Generate a job ID (or use the provided one)
     job_id = request.job_id.hex if request.job_id else uuid.uuid4().hex
-    voice_clip_path = f"{PUBLIC_VOICE_PREFIX}{request.voice_id}/{request.clip_id}"
 
+    # 2. Look up the recording in Postgres.
+    recording = return_voice(request.clip_id, uid)
+    if recording is None:
+        raise HTTPException(status_code=404, detail="Voice clip not found")
+    voice_clip_path = recording["file_path"]
+
+    # 3. Create a job in Postgres. Will return False if the job ID already exists.
     created = create_job(
-        job_id,
+        job_id, 
+        uid,
         {
             "status": "queued",
             "receiver": request.receiver,
@@ -115,6 +172,8 @@ def generate(request: CreateRingtoneRequest, background_tasks: BackgroundTasks):
             "voice_clip_path": voice_clip_path,
         },
     )
+
+    # 4. If the job was created, start the background task to generate the ringtone.
     if created:
         background_tasks.add_task(
             create_ringtone,
@@ -126,12 +185,12 @@ def generate(request: CreateRingtoneRequest, background_tasks: BackgroundTasks):
 
     return {
         "job_id": job_id,
-        "status": "queued" if created else get_job(job_id)["status"],
+        "status": "queued" if created else get_job(job_id, uid)["status"],
         "status_url": f"/status/{job_id}",
         "download_url": f"/download/{job_id}",
     }
 
-@app.get(
+@router.get(
     "/status/{job_id}",
     summary="Get ringtone generation status",
     description=dedent("""
@@ -149,8 +208,11 @@ def generate(request: CreateRingtoneRequest, background_tasks: BackgroundTasks):
     Failed jobs include the error message in `error`.
     """),
 )
-def status(job_id: str):
-    job = get_job(job_id)
+def status(
+    job_id: str, 
+    uid: str = Depends(get_current_user),
+    ):
+    job = get_job(job_id, uid) # checks if the user has access to the job. if not, returns None
 
     if job is None:
         raise HTTPException(
@@ -159,7 +221,7 @@ def status(job_id: str):
         )
     return job
 
-@app.get(
+@router.get(
     "/voices",
     summary="List available voices and their associated audio clips",
     description=dedent("""
@@ -170,12 +232,10 @@ def status(job_id: str):
     Use the returned IDs with `/voice-preview` and `/generate`.
     """),
 )
-def voices():
-    return {
-        "voices": list_available_voices(),
-    }
+def voices(uid: str = Depends(get_current_user)):
+    return list_user_voices(uid)
 
-@app.get(
+@router.get(
     "/voice-preview",
     summary="Preview a voice clip",
     description=dedent("""
@@ -192,8 +252,13 @@ def voices():
         },
     },
 )
-def voice_preview(voice_id: str, clip_id: str):
-    voice_clip_path = f"{PUBLIC_VOICE_PREFIX}{voice_id}/{clip_id}"
+def voice_preview(
+    voice_id: str, 
+    clip_id: str,
+    uid: str = Depends(get_current_user),
+    ):
+    voice = return_voice(clip_id, uid)
+    voice_clip_path = voice["file_path"]
 
     audio = get_reference_audio_stream(voice_clip_path)
 
@@ -207,7 +272,7 @@ def voice_preview(voice_id: str, clip_id: str):
         media_type=media_type,
     )
 
-@app.get(
+@router.get(
     "/download/{job_id}",
     summary="Download a completed ringtone",
     description=dedent("""
@@ -216,8 +281,8 @@ def voice_preview(voice_id: str, clip_id: str):
     succesful responses returns the WAV file (`audio/wav`).
     """),
 )
-def download(job_id: str):
-    job = get_job(job_id)
+def download(job_id: str, uid: str = Depends(get_current_user)):
+    job = get_job(job_id, uid)
 
     if job is None:
         raise HTTPException(
@@ -241,35 +306,6 @@ def download(job_id: str):
         },
     )
 
-
-@app.get("/recordings/{voice_uuid}")
-@app.get(
-    "/check-upload/{voice_uuid}",
-    summary="Check if a voice upload has gone through on the server",
-    description=dedent("""
-    When uploading a voice recording, the client uploads to GCP and then the server copies it to RustFS and registers it in PostgreSQL.
-    To check if the upload has been registered, call this endpoint with the UUID (clint generates the UUID) of the voice recording.
-
-    Returns a boolean indicating whether the voice upload exists in the database.
-    """),
-)
-def get_recording(voice_uuid: str):
-    try:
-        recording = return_voice(voice_uuid)
-    except ValueError:
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid UUID"
-        )
-
-    if recording is None:
-        raise HTTPException(
-            status_code=404,
-            detail="Recording not found"
-        )
-
-    return recording
-
 @app.get("/health")
 def health():
     return {"status": "ok"}
@@ -277,6 +313,8 @@ def health():
 @app.get("/", include_in_schema=False)
 def index():
     return FileResponse("static/index.html")
+
+app.include_router(router)
 
 if __name__ == "__main__":
     import uvicorn

@@ -184,37 +184,6 @@ def wait_for_result(job_id: str, job_type: str, job_name: str, timeout_seconds: 
         f"{job_type} Job {job_name} did not finish within {timeout_seconds} seconds."
     )
 
-def list_available_voices() -> list[dict]:
-    response = s3.list_objects_v2(
-        Bucket=RUSTFS_BUCKET_IN,
-        Prefix=PUBLIC_VOICE_PREFIX,
-    )
-    voices = {}
-    for obj in response.get("Contents", []):
-        key = obj["Key"]
-        path = PurePosixPath(key)
-        if path.suffix.lower() not in AUDIO_EXTENSIONS:
-            continue
-        # famous_people/seth_rogan/clip1.wav
-        _, voice_id, filename = path.parts # this will fail if the path is not exactly 3 parts...
-        # Create the voice entry if it does not exist, and append the clip to the list of clips for that voice.
-        voices.setdefault(voice_id,
-            {
-                "id": voice_id,
-                "name": voice_id.replace("_", " ").title(),
-                "clips": [],
-            },
-        )
-        voices[voice_id]["clips"].append({
-            "id": filename,
-            "name": path.stem,
-        })
-    return sorted(
-        voices.values(),
-        key=lambda voice: voice["name"].lower(),
-    )
-
-
 
 def get_reference_audio_stream(object_key: str):
     """
@@ -234,21 +203,37 @@ def generate_script(receiver: str, caller: str, job_id: str)-> str:
     """
     Generate a short ringtone script.
     """
+    # prompt = (
+    #     "You are a ringtone script writer. Generate a short, cute phone call script.\n\n"
+    #     "CONTEXT:\n"
+    #     f"- Caller: {caller}\n"
+    #     f"- Receiver: {receiver}\n"
+    #     f"- Narrator/Voice: {caller}\n\n"
+    #     "INSTRUCTIONS:\n"
+    #     f"- Output ONLY the script text (nothing else)\n"
+    #     f"- The script is meta - it discusses the call itself and the fact that someone is calling\n"
+    #     f"- Include the caller's name ({caller}) and receiver's name ({receiver}) naturally in the dialogue\n"
+    #     f"- Keep it around 100 words\n"
+    #     f"- Write it to be heard by the receiver ({receiver})\n"
+    #     f"NARRATOR:\n"
+    #     f"The script is narrated by {caller} (the caller) in 1st person.\n"
+    #     f"{caller} describes their situation calling {receiver}."
+    # )
     prompt = (
-        "You are a ringtone script writer. Generate a short, cute phone call script.\n\n"
-        "CONTEXT:\n"
-        f"- Caller: {caller}\n"
-        f"- Receiver: {receiver}\n"
-        f"- Narrator/Voice: {caller}\n\n"
-        "INSTRUCTIONS:\n"
-        f"- Output ONLY the script text (nothing else)\n"
-        f"- The script is meta - it discusses the call itself and the fact that someone is calling\n"
-        f"- Include the caller's name ({caller}) and receiver's name ({receiver}) naturally in the dialogue\n"
-        f"- Keep it around 100 words\n"
-        f"- Write it to be heard by the receiver ({receiver})\n"
-        f"NARRATOR:\n"
-        f"The script is narrated by {caller} (the caller) in 1st person.\n"
-        f"{caller} describes their situation calling {receiver}."
+        "你是一名手机铃声脚本编剧。请创作一段简短、可爱的来电脚本。\n\n"
+        "背景信息：\n"
+        f"- 来电者：{caller}\n"
+        f"- 接听者：{receiver}\n"
+        f"- 旁白/配音：{caller}\n\n"
+        "要求：\n"
+        f"- 只输出脚本文本，不要包含任何其他内容\n"
+        f"- 脚本需要具有元叙事风格，即围绕这通电话本身展开，提到有人正在打电话这件事\n"
+        f"- 在对话中自然地融入来电者的名字（{caller}）和接听者的名字（{receiver}）\n"
+        f"- 篇幅控制在100字左右\n"
+        f"- 脚本应以接听者（{receiver}）为倾听对象，让对方听到后感到亲切有趣\n"
+        f"旁白设定：\n"
+        f"脚本由来电者 {caller} 以第一人称进行讲述。\n"
+        f"{caller} 描述自己正在给 {receiver} 打电话的情景。"
     )
     job_name = submit_job("llama", prompt)
     set_job(job_id, {

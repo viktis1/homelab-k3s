@@ -31,12 +31,14 @@ def init_db():
                 status TEXT NOT NULL,
                 details JSONB NOT NULL DEFAULT '{}'::jsonb,
                 created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                user_id TEXT
+
             )
         """)
 
 
-def create_job(job_id: str, value: dict) -> bool:
+def create_job(job_id: str, user_id: str, value: dict) -> bool:
     """
     Create a job only if its ID does not already exist.
 
@@ -45,8 +47,13 @@ def create_job(job_id: str, value: dict) -> bool:
     with connect() as conn:
         row = conn.execute(
             """
-            INSERT INTO ringtone_jobs (job_id, status, details)
-            VALUES (%s, %s, %s)
+            INSERT INTO ringtone_jobs (
+                job_id,
+                status,
+                details,
+                user_id
+            )
+            VALUES (%s, %s, %s, %s)
             ON CONFLICT (job_id) DO NOTHING
             RETURNING job_id
             """,
@@ -54,6 +61,7 @@ def create_job(job_id: str, value: dict) -> bool:
                 job_id,
                 value["status"],
                 Jsonb(value),
+                user_id,
             ),
         ).fetchone()
 
@@ -93,7 +101,7 @@ def set_job(job_id: str, value: dict):
         )
 
 
-def get_job(job_id: str) -> dict | None:
+def get_job(job_id: str, user_id: str) -> dict | None:
     """
     Retrieve a job from PostgreSQL.
     """
@@ -104,8 +112,9 @@ def get_job(job_id: str) -> dict | None:
             SELECT status, details, created_at
             FROM ringtone_jobs
             WHERE job_id = %s
+                and user_id = %s
             """,
-            (job_id,),
+            (job_id, user_id),
         ).fetchone()
 
     if row is None:
@@ -123,18 +132,21 @@ def get_job(job_id: str) -> dict | None:
 ### ------------------------
 ### Voice Uploads
 ### ------------------------
-def return_voice(voice_uuid: str) -> dict | None:
+def return_voice(voice_uuid: str, user_id: str) -> dict | None:
     """
     Retrieve an uploaded voice using its UUID.
+
+    Allow access if:
+    - The recording belongs to the authenticated user.
+    - The recording is public.
     """
     with connect() as conn:
         row = conn.execute(
             """
             SELECT uuid, file_path, created_at
             FROM voice_uploads
-            WHERE uuid = %s
-            """,
-            (uuid.UUID(voice_uuid),),
+            WHERE uuid = %s and (public = TRUE or user_id = %s)
+            """, (uuid.UUID(voice_uuid), user_id)
         ).fetchone()
 
     if row is None:
@@ -147,3 +159,37 @@ def return_voice(voice_uuid: str) -> dict | None:
         "file_path": file_path,
         "created_at": created_at,
     }
+
+
+def list_user_voices(user_id: str) -> dict:
+    with connect() as conn:
+        rows = conn.execute(
+            """
+            SELECT uuid, file_path, public, contact, created_at
+            FROM voice_uploads
+            WHERE user_id = %s OR public = TRUE
+            ORDER BY contact, created_at DESC
+            """,
+            (user_id,),
+        ).fetchall()
+
+    voices = {
+        "Public": {},
+        "Your Uploads": {},
+    }
+
+    for voice_uuid, file_path, public, contact, created_at in rows:
+        source = "Public" if public else "Your Uploads"
+
+        # Create the person if they don't exist
+        person = voices[source].setdefault(contact, {
+            "clips": [],
+        })
+
+        # Append the recording
+        person["clips"].append({
+            "id": str(voice_uuid),
+            "name": file_path,
+        })
+
+    return voices
