@@ -1,22 +1,52 @@
 import json
 import os
-import time
+import uuid
 
 import requests
-from google.cloud import pubsub_v1
+from google.cloud import pubsub_v1, storage
 
 
 PROJECT = os.environ["GOOGLE_CLOUD_PROJECT"]
 SUBSCRIPTION = os.environ["PUBSUB_SUBSCRIPTION"]
-
 ORCHESTRATOR_URL = os.environ["ORCHESTRATOR_URL"]
+REQUEST_BUCKET = os.environ["RINGTONE_REQUEST_BUCKET"]
+
+gcs = storage.Client()
+
+
+
+
+def get_request(message):
+    attrs = message.attributes
+
+    name = attrs["objectId"]
+    generation = int(attrs["objectGeneration"])
+
+    # Expected: users/<firebase_uid>/<job_id>.json
+    parts = name.split("/")
+    uid = parts[1]
+    filename = parts[2]
+
+    # Validate the UUID4 job ID from the filename.
+    job_uuid = uuid.UUID(filename[:-5])
+
+    # Download the request from GCS.
+    blob = gcs.bucket(REQUEST_BUCKET).blob(
+        name,
+        generation=generation,
+    )
+
+    # fields = ("receiver", "caller", "voice_id", "clip_id")
+    payload = json.loads(blob.download_as_bytes())
+
+    return uid, payload
+
 
 def callback(message):
     try:
-        # Decode the message received from Pub/Sub.
-        payload = json.loads(message.data.decode("utf-8"))
-        uid = payload.pop("uid") # User ID is sent in the payload and trusted, since pubsubs should be authenticated and authorized.
-        # Submit the job to the create-ringtone orchestrator.
+        uid, payload = get_request(message)
+
+        # Existing orchestrator submission logic.
         response = requests.post(
             f"{ORCHESTRATOR_URL}/generate",
             json=payload,
@@ -26,7 +56,15 @@ def callback(message):
             },
             timeout=30,
         )
+
+        # Reject permanently invalid requests.
+        if response.status_code in (400, 403, 422):
+            print(f"Rejected request: {response.status_code} {response.text}")
+            message.ack()
+            return
+
         response.raise_for_status()
+
         job_id = response.json()["job_id"]
         print(f"Submitted ringtone job: {job_id}")
 
@@ -43,6 +81,7 @@ if __name__ == "__main__":
             PROJECT,
             SUBSCRIPTION,
         )
+
         future = subscriber.subscribe(
             subscription,
             callback=callback,
@@ -51,7 +90,9 @@ if __name__ == "__main__":
                 max_lease_duration=3600,
             ),
         )
+
         print(f"Listening on {subscription}")
+
         try:
             future.result()
         except KeyboardInterrupt:

@@ -38,6 +38,8 @@ spec:
                 secretKeyRef:
                   name: ringtone-worker-auth
                   key: token
+            - name: RINGTONE_REQUEST_BUCKET
+              value: "ringtone-generation-request-ringtone-k8s"
           resources:
             requests:
               cpu: 50m
