@@ -235,11 +235,14 @@ def status(
     "/voices",
     summary="List available voices and their associated audio clips",
     description=dedent("""
-    Returns a JSON object containing a `voices` array.
-    Each voice has an `id`, `name`, and `clips` array.
-    Each clip has an `id` and `name`.
+    Returns available voices grouped into `Public` and `Your Uploads`.
 
-    Use the returned IDs with `/voice-preview` and `/generate`.
+    Each group contains voices indexed by contact name, with a `clips` array containing:
+    - `id`: Unique clip identifier.
+    - `name`: Audio file path.
+    - `created_at`: Clip creation timestamp (ISO 8601).
+
+    Use the returned clip IDs with `/voice-preview` and `/generate`.
     """),
 )
 def voices(uid: str = Depends(get_current_user)):

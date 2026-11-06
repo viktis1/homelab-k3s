@@ -190,6 +190,7 @@ def list_user_voices(user_id: str) -> dict:
         person["clips"].append({
             "id": str(voice_uuid),
             "name": file_path,
+            "created_at": created_at.isoformat(),
         })
 
     return voices
