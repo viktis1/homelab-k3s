@@ -29,7 +29,7 @@ images:
 
 - name: create-ringtone-orchestrator-image
   newName: ghcr.io/viktis1/create-ringtone-orchestrator
-  newTag: "6542019a4e8a9fe5acb2f0d955aab89059d69681"
+  newTag: "7b65d2c78e6e22a691d26903baacdd38a7d120dc"
 
 - name: create-ringtone-pubsub-watcher-image
   newName: ghcr.io/viktis1/create-ringtone-pubsub-watcher
