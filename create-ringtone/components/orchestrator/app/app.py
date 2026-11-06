@@ -194,18 +194,28 @@ def generate(
     "/status/{job_id}",
     summary="Get ringtone generation status",
     description=dedent("""
-    Retrieve the current job status and available metadata.
+    Retrieve the current job status and generation details.
 
-    **statuses:** 
-    - `queued`: Waiting to start. Only one job at a time.
-    - `running`: Ringtone generation is in progress.
-    - `done`: The ringtone is ready. Use /download/{job_id} to retrieve it.
-    - `failed`: Generation failed. The `error` field describes the problem.
+    **Job statuses:**
+    - `queued`: Waiting to start.
+    - `running`: Generation in progress.
+    - `done`: Ringtone ready at `/download/{job_id}`.
+    - `failed`: Generation failed; see `error`.
 
-    
-    
-    Additional fields are included as generation progresses.
-    Failed jobs include the error message in `error`.
+    **Generation details:**
+    - `llm_status`, `llama_status`, `tts_status`: Progress of the LLM and TTS stages.
+    - `llm_job_id`, `tts_job_id`: GPU job identifiers.
+    - `llama_duration_seconds`, `tts_duration_seconds`: Stage durations in seconds.
+
+    **Job metadata:**
+    - `receiver`, `caller`: Names used in the ringtone.
+    - `voice_clip_path`: Reference audio path.
+    - `script`: Generated ringtone script.
+    - `output_key`: Completed ringtone storage path.
+    - `created_at`: Job creation timestamp.
+    - `error`: Failure details, if applicable.
+
+    The **Generation details** become available as generation progresses.
     """),
 )
 def status(
