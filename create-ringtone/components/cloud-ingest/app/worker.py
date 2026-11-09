@@ -6,11 +6,18 @@ import boto3
 from botocore.config import Config
 from google.cloud import pubsub_v1, storage
 
+import time
+import requests
+
 from database import init_db, upload_voice
 
 PROJECT = os.environ["GOOGLE_CLOUD_PROJECT"]
 SUBSCRIPTION = os.environ["PUBSUB_SUBSCRIPTION"]
 RUSTFS_BUCKET = os.environ["RUSTFS_BUCKET"]
+
+
+GPU_ORCHESTRATOR_URL = "http://gpu-orchestrator.gpu-orchestrator.svc.viktor.cluster:8000" # is this correct? 
+RUSTFS_INTERNAL_URL = "http://rustfs.create-ringtone.svc.viktor.cluster:9000"
 
 class InvalidUploadError(Exception):
     """An upload that cannot be processed."""
@@ -27,6 +34,50 @@ s3 = boto3.client(
     config=Config(s3={"addressing_style": "path"}),
 )
 
+def classify_language(object_key: str) -> str:
+    # Signed URL for the GPU pod to download the recording
+    signed_s3 = boto3.client(
+        "s3",
+        endpoint_url=RUSTFS_INTERNAL_URL,
+        aws_access_key_id=os.environ["RUSTFS_ACCESS_KEY"],
+        aws_secret_access_key=os.environ["RUSTFS_SECRET_KEY"],
+        region_name="us-east-1",
+        config=Config(signature_version="s3v4", s3={"addressing_style": "path"}),
+    )
+
+    audio_url = signed_s3.generate_presigned_url(
+        "get_object",
+        Params={"Bucket": RUSTFS_BUCKET, "Key": object_key},
+        ExpiresIn=1800,
+    )
+
+    # Submit GPU job
+    response = requests.post(
+        f"{GPU_ORCHESTRATOR_URL}/jobs/lid",
+        json={"audio_url": audio_url},
+        timeout=30,
+    )
+    response.raise_for_status()
+    job_name = response.json()["job"]
+
+    # Wait for classification
+    deadline = time.monotonic() + 300 # 5 minutes
+
+    while time.monotonic() < deadline:
+        response = requests.get(
+            f"{GPU_ORCHESTRATOR_URL}/jobs/lid/{job_name}",
+            timeout=30,
+        )
+
+        if response.status_code == 200:
+            return response.json()["lang"]
+
+        if response.status_code != 202:
+            response.raise_for_status()
+
+        time.sleep(5)
+
+    raise TimeoutError(f"LID job {job_name} timed out")
 
 def ensure_bucket():
     buckets = {b["Name"] for b in s3.list_buckets().get("Buckets", [])}
@@ -74,6 +125,9 @@ def copy_object(bucket, name, generation):
         Body=data,
     )
     print(f"Copied gs://{bucket}/{name} -> {RUSTFS_BUCKET}/{name}")
+
+    language = classify_language(rustfs_path)
+    print(f"Detected language: {language}")
 
     # Register the RustFS location in PostgreSQL
     upload_voice(
