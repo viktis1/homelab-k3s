@@ -11,7 +11,7 @@ spec:
       runtimeClassName: nvidia
       containers:
         - name: firered-lid
-          image: ghcr.io/viktis1/gpu-firered-lid:083ff18fd868fc172c502ac7a052c88620efdf3d
+          image: ghcr.io/viktis1/gpu-firered-lid:84b675cd5ba5cd7388ae32dcea9d1bd2a1103155
           imagePullPolicy: IfNotPresent
           args:
             - --model-dir
