@@ -2,6 +2,7 @@ import argparse
 import json
 import tempfile
 from urllib.request import urlopen
+import subprocess
 
 from fireredlid.lid import FireRedLid, FireRedLidConfig
 
@@ -47,9 +48,23 @@ def main():
     )
 
     with tempfile.TemporaryDirectory() as temp_dir:
+        original_path = Path(temp_dir) / "original.wav"
         audio_path = Path(temp_dir) / "audio.wav"
 
-        download_audio(args.audio, audio_path)
+        download_audio(args.audio, original_path)
+
+        subprocess.run(
+            [
+                "ffmpeg", "-y",
+                "-i", str(original_path),
+                "-ar", "16000",
+                "-ac", "1",
+                "-c:a", "pcm_s16le",
+                str(audio_path),
+            ],
+            check=True,
+            capture_output=True,
+        )
 
         result = model.process(
             batch_uttid=["audio"],

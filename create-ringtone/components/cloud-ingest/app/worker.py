@@ -50,6 +50,7 @@ def classify_language(object_key: str) -> str:
         Params={"Bucket": RUSTFS_BUCKET, "Key": object_key},
         ExpiresIn=1800,
     )
+    print(f"Generated signed URL for LID: {audio_url}")
 
     # Submit GPU job
     response = requests.post(
@@ -75,7 +76,7 @@ def classify_language(object_key: str) -> str:
         if response.status_code != 202:
             response.raise_for_status()
 
-        time.sleep(5)
+        time.sleep(12)
 
     raise TimeoutError(f"LID job {job_name} timed out")
 
