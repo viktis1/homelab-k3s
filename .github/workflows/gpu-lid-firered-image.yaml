@@ -1,0 +1,71 @@
+name: Build LID image - FireRed
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "gpu/lid/fire-red-lid/**"
+      - "!gpu/lid/fire-red-lid/README.md"
+      - ".github/workflows/gpu-lid-firered-image.yaml"
+      
+  workflow_dispatch:
+
+concurrency:
+  group: kustomize-image-updates
+  cancel-in-progress: false
+  queue: max
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: ./gpu/lid/fire-red-lid
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/gpu-firered-lid:${{ github.sha }}
+      
+      - name: Sync branch
+        run: |
+          git fetch origin "${GITHUB_REF_NAME}"
+          git checkout -B "${GITHUB_REF_NAME}" "origin/${GITHUB_REF_NAME}"
+
+      - name: Update Job template image
+        run: |
+          TEMPLATE="gpu/lid/templates/lid-firered.job.yaml"
+
+          grep -q 'image: ghcr.io/viktis1/gpu-firered-lid:' "$TEMPLATE"
+
+          sed -i \
+            -E 's|(image: ghcr.io/viktis1/gpu-firered-lid:)[^[:space:]]+|\1'"${GITHUB_SHA}"'|' \
+            "$TEMPLATE"
+
+      - name: Commit Job template image
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add gpu/lid/templates/lid-firered.job.yaml
+
+          if git diff --cached --quiet; then
+            echo "FireRed LID image is already up to date"
+          else
+            git commit -m "chore: update FireRed LID image to ${GITHUB_SHA}"
+            git push origin HEAD:${GITHUB_REF_NAME}
+          fi

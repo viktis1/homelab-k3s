@@ -7,7 +7,7 @@ from kubernetes import client, config
 from kubernetes.client.exceptions import ApiException
 from pydantic import ValidationError
 
-from jobs import llamacpp, tts
+from jobs import llamacpp, tts, lid
 
 
 app = FastAPI()
@@ -28,6 +28,7 @@ JOB_TYPES = {
     for module in (
         llamacpp, # dictionary for this becomes {"llama": llamacpp},
         tts, # dictionary for this becomes {"tts": tts},
+        lid, # dictionary for this becomes {"lid": lid},
     )
 }
 

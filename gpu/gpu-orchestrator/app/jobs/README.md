@@ -5,3 +5,8 @@ This is a friendly reminder to myself for how to write the files under jobs/
 - Create a "Request" class for the payload of the html.
 - Create a "build_job" function that creates a kubernetes manifest for building a job.
 -  create a "read_results" function. The output of this function is returned directly to the user.
+
+# TO-DO
+I think the current implementation is pretty disgusting. The orchestrator currently mixes tasks (LID, TTS, LLM) with model implementations (FireRedLID, Llama.cpp).
+
+Refactor it so endpoints represent tasks (/jobs/lid), while the request specifies which model to use ("model": "firered"). This should allow multiple models per task without changing the orchestrator itself.

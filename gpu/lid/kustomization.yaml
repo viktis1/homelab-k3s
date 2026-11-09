@@ -1,0 +1,18 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: lid
+
+resources:
+  - resources/lid.namespace.yaml
+  # - resources/lid.persistentvolume.yaml # This is not needed anymore, since I am not using dedicated LVM filesystems anymore.
+  - resources/lid.persistentvolumeclaim.yaml
+  - resources/gpu-orchestrator.rolebinding.yaml
+
+generatorOptions:
+  disableNameSuffixHash: true
+
+configMapGenerator:
+  - name: lid-firered-job-template
+    files:
+      - templates/lid-firered.job.yaml

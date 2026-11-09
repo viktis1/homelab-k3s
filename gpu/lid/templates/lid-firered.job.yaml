@@ -1,0 +1,34 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  generateName: lid-firered-
+
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      runtimeClassName: nvidia
+      containers:
+        - name: firered-lid
+          image: ghcr.io/viktis1/gpu-firered-lid:083ff18fd868fc172c502ac7a052c88620efdf3d
+          imagePullPolicy: IfNotPresent
+          args:
+            - --model-dir
+            - "/models/FireRedLID"
+            - --audio # A signed URL to the audio file to be processed
+            - "__download_url__"
+          resources:
+            requests:
+              cpu: "1"
+              memory: "2Gi" 
+            limits:
+              memory: "8Gi"
+              nvidia.com/gpu: "1"
+          volumeMounts:
+            - name: models
+              mountPath: /models
+      volumes:
+        - name: models
+          persistentVolumeClaim:
+            claimName: models-lid

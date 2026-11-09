@@ -11,7 +11,7 @@ spec:
       runtimeClassName: nvidia
       containers:
         - name: tts
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           image: ghcr.io/viktis1/voxcpm-open-tts:sha-a8c8cb8
 
           env:
@@ -81,7 +81,7 @@ spec:
           resources:
             requests:
               cpu: "1"
-              memory: "12Gi" # This actually uses almost 20GB RAM, because parameters are not loaded into VRAM directly... Hoping the upstream model fixes this eventually...
+              memory: "4Gi" 
             limits:
               memory: "18Gi"
               nvidia.com/gpu: "1"

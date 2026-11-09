@@ -8,6 +8,7 @@ rules:
     resourceNames: 
     - llm-job-template
     - tts-job-template
+    - lid-firered-job-template
     verbs: ["get"]
   - apiGroups: ["batch"]
     resources: ["jobs"]
