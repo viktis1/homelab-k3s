@@ -9,7 +9,7 @@ from google.cloud import pubsub_v1, storage
 import time
 import requests
 
-from database import init_db, upload_voice
+from database import init_db, register_voice, update_voice_language
 
 PROJECT = os.environ["GOOGLE_CLOUD_PROJECT"]
 SUBSCRIPTION = os.environ["PUBSUB_SUBSCRIPTION"]
@@ -129,16 +129,21 @@ def copy_object(bucket, name, generation):
 
     language = classify_language(rustfs_path)
 
-    # Register the RustFS location in PostgreSQL
-    upload_voice(
+    # Register recording
+    register_voice(
         voice_uuid=voice_uuid,
         user_id=user_id,
         contact=voice_name,
         file_path=rustfs_path,
         public=public,
-        language=language,
     )
     print(f"Registered voice-upload {voice_uuid}({voice_name}, user={user_id})")
+
+    # Classify language
+    language = classify_language(rustfs_path)
+
+    update_voice_language(voice_uuid, language)# Register recording
+    print("language was detected and updated in the database: \n", language)
 
 
 def callback(message):
