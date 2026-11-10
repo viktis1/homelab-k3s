@@ -29,6 +29,7 @@ def init_db():
                 contact TEXT NOT NULL,
                 file_path TEXT NOT NULL,
                 public BOOLEAN NOT NULL DEFAULT FALSE,
+                language TEXT,
                 created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
             )
         """)
@@ -40,7 +41,8 @@ def upload_voice(
         user_id: str | None, 
         contact: str, 
         public: bool,
-        file_path: str
+        file_path: str,
+        language: str | None = None,
         ) -> bool:
     """
     Register an uploaded voice.
@@ -50,12 +52,14 @@ def upload_voice(
     with connect() as conn:
         row = conn.execute(
             """
-            INSERT INTO voice_uploads (uuid, user_id, contact, file_path, public)
-            VALUES (%s, %s, %s, %s, %s)
-            ON CONFLICT (uuid) DO NOTHING
+            INSERT INTO voice_uploads 
+                (uuid, user_id, contact, file_path, public, language)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            ON CONFLICT (uuid) DO UPDATE
+                SET language = EXCLUDED.language
             RETURNING uuid
             """,
-            (uuid.UUID(voice_uuid), user_id, contact, file_path, public),
+            (uuid.UUID(voice_uuid), user_id, contact, file_path, public, language),
         ).fetchone()
 
     return row is not None

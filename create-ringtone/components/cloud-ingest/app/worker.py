@@ -128,7 +128,6 @@ def copy_object(bucket, name, generation):
     print(f"Copied gs://{bucket}/{name} -> {RUSTFS_BUCKET}/{name}")
 
     language = classify_language(rustfs_path)
-    print(f"Detected language: {language}")
 
     # Register the RustFS location in PostgreSQL
     upload_voice(
@@ -137,6 +136,7 @@ def copy_object(bucket, name, generation):
         contact=voice_name,
         file_path=rustfs_path,
         public=public,
+        language=language,
     )
     print(f"Registered voice-upload {voice_uuid}({voice_name}, user={user_id})")
 
