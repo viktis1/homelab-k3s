@@ -43,3 +43,45 @@ resource "google_pubsub_subscription_iam_member" "ringtone_worker_subscriber" {
   member = "serviceAccount:${google_service_account.ringtone_worker.email}"
 }
 
+# Create a request bucket and bind the pubsubs to it. Easier for users to upload to a bucket.
+resource "google_storage_bucket" "ringtone_request" {
+  name                        = "ringtone-generation-request-${var.project_id}"
+  project                     = var.project_id
+  location                    = "EU"
+  uniform_bucket_level_access = true
+  force_destroy               = false
+
+  # Remove old requests automatically.
+  lifecycle_rule {
+    action {
+      type = "Delete"
+    }
+    condition {
+      age = 45
+    }
+  }
+} 
+
+resource "google_pubsub_topic_iam_member" "ringtone_gcs_publisher" {
+  project = var.project_id
+  topic   = google_pubsub_topic.ringtone_generate.name
+  role    = "roles/pubsub.publisher"
+  member  = data.google_storage_project_service_account.gcs.member
+}
+
+resource "google_storage_notification" "ringtone_request_finalize" {
+  bucket         = google_storage_bucket.ringtone_request.name
+  topic          = google_pubsub_topic.ringtone_generate.id
+  event_types    = ["OBJECT_FINALIZE"]
+  payload_format = "JSON_API_V1"
+
+  depends_on = [
+    google_pubsub_topic_iam_member.ringtone_gcs_publisher
+  ]
+}
+
+resource "google_storage_bucket_iam_member" "ringtone_worker_reader" {
+  bucket = google_storage_bucket.ringtone_request.name
+  role   = "roles/storage.objectViewer"
+  member = "serviceAccount:${google_service_account.ringtone_worker.email}"
+}

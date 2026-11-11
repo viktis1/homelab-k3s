@@ -144,3 +144,58 @@ resource "google_firebaserules_release" "voice_upload" {
     replace_triggered_by = [google_firebaserules_ruleset.voice_upload]
   }
 }
+
+# Do the same for the ringtone request bucket.
+resource "google_firebase_storage_bucket" "ringtone_request" {
+  provider = google-beta
+
+  project   = var.project_id
+  bucket_id = google_storage_bucket.ringtone_request.name
+}
+resource "google_firebaserules_ruleset" "ringtone_request" {
+  provider = google-beta
+  project  = var.project_id
+
+  source {
+    files {
+      name = "storage.rules"
+
+      content = <<-EOT
+        rules_version = '2';
+
+        service firebase.storage {
+          match /b/{bucket}/o {
+            match /users/{userId}/{fileName} {
+              allow create: if request.auth != null
+                            && request.auth.uid == userId
+                            && fileName.matches('^[0-9a-f-]{36}\\.json$')
+                            && request.resource.size > 0
+                            && request.resource.size < 16 * 1024
+                            && request.resource.contentType == 'application/json';
+              allow get: if request.auth != null
+                         && request.auth.uid == userId;
+            }
+          }
+        }
+      EOT
+    }
+  }
+
+  depends_on = [
+    google_firebase_storage_bucket.ringtone_request
+  ]
+}
+resource "google_firebaserules_release" "ringtone_request" {
+  provider = google-beta
+  project  = var.project_id
+
+  name = "firebase.storage/${google_storage_bucket.ringtone_request.name}"
+
+  ruleset_name = "projects/${var.project_id}/rulesets/${google_firebaserules_ruleset.ringtone_request.name}"
+
+  lifecycle {
+    replace_triggered_by = [
+      google_firebaserules_ruleset.ringtone_request
+    ]
+  }
+}
