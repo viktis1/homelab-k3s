@@ -127,8 +127,6 @@ def copy_object(bucket, name, generation):
     )
     print(f"Copied gs://{bucket}/{name} -> {RUSTFS_BUCKET}/{name}")
 
-    language = classify_language(rustfs_path)
-
     # Register recording
     register_voice(
         voice_uuid=voice_uuid,
