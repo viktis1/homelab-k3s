@@ -4,4 +4,4 @@ requests
 uvicorn
 psycopg[binary]
 firebase-admin
-langcodes
+langcodes[data]
