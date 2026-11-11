@@ -259,6 +259,11 @@ def generate_script(receiver: str, caller: str, job_id: str, language: str)-> st
 def create_ringtone(job_id: str, receiver: str, caller: str, voice_clip_path: str, language: str ):
     set_job(job_id, {"status": "running"})
     try:
+        # 0. wait for language detection to finish (if not already done)
+        if language is None:
+            language = wait_for_language(clip_id=voice_clip_path, uid=job_id)
+            set_job(job_id, {"status": "waiting", "language": language})
+
         # 1. Generate script in the target language using LLMs
         script = generate_script(receiver=receiver, caller=caller, job_id=job_id, language=language)
 

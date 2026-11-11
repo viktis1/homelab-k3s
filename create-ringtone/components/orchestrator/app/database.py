@@ -166,7 +166,7 @@ def list_user_voices(user_id: str) -> dict:
     with connect() as conn:
         rows = conn.execute(
             """
-            SELECT uuid, file_path, public, contact, created_at
+            SELECT uuid, file_path, public, contact, language, created_at
             FROM voice_uploads
             WHERE user_id = %s OR public = TRUE
             ORDER BY contact, created_at DESC
@@ -179,7 +179,7 @@ def list_user_voices(user_id: str) -> dict:
         "Your Uploads": {},
     }
 
-    for voice_uuid, file_path, public, contact, created_at in rows:
+    for voice_uuid, file_path, public, contact, language, created_at in rows:
         source = "Public" if public else "Your Uploads"
 
         # Create the person if they don't exist
@@ -191,6 +191,7 @@ def list_user_voices(user_id: str) -> dict:
         person["clips"].append({
             "id": str(voice_uuid),
             "name": file_path,
+            "language": language,
             "created_at": created_at.isoformat(),
         })
 
