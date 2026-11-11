@@ -143,7 +143,7 @@ def return_voice(voice_uuid: str, user_id: str) -> dict | None:
     with connect() as conn:
         row = conn.execute(
             """
-            SELECT uuid, file_path, created_at
+            SELECT uuid, file_path, created_at, language
             FROM voice_uploads
             WHERE uuid = %s and (public = TRUE or user_id = %s)
             """, (uuid.UUID(voice_uuid), user_id)
@@ -152,12 +152,13 @@ def return_voice(voice_uuid: str, user_id: str) -> dict | None:
     if row is None:
         return None
 
-    voice_id, file_path, created_at = row
+    voice_id, file_path, created_at, language = row
 
     return {
         "uuid": str(voice_id),
         "file_path": file_path,
         "created_at": created_at,
+        "language": language,
     }
 
 

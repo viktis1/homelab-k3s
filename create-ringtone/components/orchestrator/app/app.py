@@ -160,6 +160,7 @@ def generate(
     if recording is None:
         raise HTTPException(status_code=404, detail="Voice clip not found")
     voice_clip_path = recording["file_path"]
+    language = recording["language"]
 
     # 3. Create a job in Postgres. Will return False if the job ID already exists.
     created = create_job(
@@ -181,6 +182,7 @@ def generate(
             request.receiver,
             request.caller,
             voice_clip_path,
+            language = language
         )
 
     return {
