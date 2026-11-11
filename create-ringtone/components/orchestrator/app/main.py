@@ -241,17 +241,19 @@ def generate_script(receiver: str, caller: str, job_id: str, language: str)-> st
     translate_job_name = submit_job("llama", translate_prompt)
     set_job(job_id, {
         "status": "running",
+        "llm_translate_job_id": translate_job_name,
         "llm_translate_status": "submitted",
     })
     prompt = wait_for_result(job_id, "llama", translate_job_name, "llm_translate")
 
     # Generate script
-    job_name = submit_job("llama", prompt)
+    script_generation_name = submit_job("llama", prompt)
     set_job(job_id, {
         "status": "running",
+        "script_generation_job_id": script_generation_name,
         "script_generation_status": "submitted",
     })
-    script = wait_for_result(job_id, "llama", job_name, "script_generation")
+    script = wait_for_result(job_id, "llama", script_generation_name, "script_generation")
     return script
 
 def create_ringtone(job_id: str, receiver: str, caller: str, voice_clip_path: str, language: str ):
