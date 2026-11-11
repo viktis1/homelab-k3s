@@ -143,7 +143,7 @@ def return_voice(voice_uuid: str, user_id: str) -> dict | None:
     with connect() as conn:
         row = conn.execute(
             """
-            SELECT uuid, file_path, created_at
+            SELECT uuid, file_path, created_at, language
             FROM voice_uploads
             WHERE uuid = %s and (public = TRUE or user_id = %s)
             """, (uuid.UUID(voice_uuid), user_id)
@@ -152,12 +152,13 @@ def return_voice(voice_uuid: str, user_id: str) -> dict | None:
     if row is None:
         return None
 
-    voice_id, file_path, created_at = row
+    voice_id, file_path, created_at, language = row
 
     return {
         "uuid": str(voice_id),
         "file_path": file_path,
         "created_at": created_at,
+        "language": language,
     }
 
 
@@ -165,7 +166,7 @@ def list_user_voices(user_id: str) -> dict:
     with connect() as conn:
         rows = conn.execute(
             """
-            SELECT uuid, file_path, public, contact, created_at
+            SELECT uuid, file_path, public, contact, language, created_at
             FROM voice_uploads
             WHERE user_id = %s OR public = TRUE
             ORDER BY contact, created_at DESC
@@ -178,7 +179,7 @@ def list_user_voices(user_id: str) -> dict:
         "Your Uploads": {},
     }
 
-    for voice_uuid, file_path, public, contact, created_at in rows:
+    for voice_uuid, file_path, public, contact, language, created_at in rows:
         source = "Public" if public else "Your Uploads"
 
         # Create the person if they don't exist
@@ -190,6 +191,7 @@ def list_user_voices(user_id: str) -> dict:
         person["clips"].append({
             "id": str(voice_uuid),
             "name": file_path,
+            "language": language,
             "created_at": created_at.isoformat(),
         })
 

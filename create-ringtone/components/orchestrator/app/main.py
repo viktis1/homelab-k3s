@@ -10,7 +10,7 @@ import requests
 from botocore.config import Config
 from botocore.exceptions import ClientError
 
-from database import set_job
+from database import set_job, return_voice
 
 
 # RustFS is the local object storage. Voice-upload is the bucket for uploaded reference audio.
@@ -131,7 +131,7 @@ def submit_job(job_type: str, prompt: str, reference_audio_url: str | None = Non
 
 
 
-def wait_for_result(job_id: str, job_type: str, job_name: str, timeout_seconds: int = 1200):
+def wait_for_result(job_id: str, job_type: str, job_name: str, status_name: str, timeout_seconds: int = 1200):
     """
     Poll gpu-orchestrator until the TTS/LLM Job finishes.
     Store GPU Job status changes in PostgreSQL.
@@ -162,9 +162,9 @@ def wait_for_result(job_id: str, job_type: str, job_name: str, timeout_seconds: 
         if status != previous_status:
             set_job(job_id, {
                 "status": "running",
-                f"{job_type}_status": status,
+                f"{status_name}_status": status,
                 **(
-                    {f"{job_type}_duration_seconds": round(time.monotonic() - start_time, 2)}
+                    {f"{status_name}_duration_seconds": round(time.monotonic() - start_time, 2)}
                     if status == "completed" else {}
                 ),
             })
@@ -179,7 +179,7 @@ def wait_for_result(job_id: str, job_type: str, job_name: str, timeout_seconds: 
             )
         time.sleep(1)
 
-    set_job(job_id, {"status": "running", f"{job_type}_status": "timeout"})
+    set_job(job_id, {"status": "running", f"{status_name}_status": "timeout"})
     raise TimeoutError(
         f"{job_type} Job {job_name} did not finish within {timeout_seconds} seconds."
     )
@@ -199,60 +199,73 @@ def get_reference_audio_stream(object_key: str):
 # ---------------------------------------------------------------------------
 # Full creation pipeline
 # ---------------------------------------------------------------------------
-def generate_script(receiver: str, caller: str, job_id: str)-> str:
+def wait_for_language(clip_id: str, uid: str, timeout_seconds: int = 1200) -> str:
+    """Wait until language detection has updated PostgreSQL."""
+    deadline = time.monotonic() + timeout_seconds
+
+    while time.monotonic() < deadline:
+        recording = return_voice(clip_id, uid)
+
+        if recording and recording["language"]:
+            return recording["language"]
+
+        time.sleep(10)
+
+    raise TimeoutError(f"Language detection timed out for {clip_id}")
+
+def generate_script(receiver: str, caller: str, job_id: str, language: str)-> str:
     """
-    Generate a short ringtone script.
+    Translate the english prompt to the target language.
+    Afterwards, generate a short ringtone script.
     """
-    # prompt = (
-    #     "You are a ringtone script writer. Generate a short, cute phone call script.\n\n"
-    #     "CONTEXT:\n"
-    #     f"- Caller: {caller}\n"
-    #     f"- Receiver: {receiver}\n"
-    #     f"- Narrator/Voice: {caller}\n\n"
-    #     "INSTRUCTIONS:\n"
-    #     f"- Output ONLY the script text (nothing else)\n"
-    #     f"- The script is meta - it discusses the call itself and the fact that someone is calling\n"
-    #     f"- Include the caller's name ({caller}) and receiver's name ({receiver}) naturally in the dialogue\n"
-    #     f"- Keep it around 100 words\n"
-    #     f"- Write it to be heard by the receiver ({receiver})\n"
-    #     f"NARRATOR:\n"
-    #     f"The script is narrated by {caller} (the caller) in 1st person.\n"
-    #     f"{caller} describes their situation calling {receiver}."
-    # )
-    prompt = (
-        "你是一名手机铃声脚本编剧。请创作一段简短、可爱的来电脚本。\n\n"
-        "背景信息：\n"
-        f"- 来电者：{caller}\n"
-        f"- 接听者：{receiver}\n"
-        f"- 旁白/配音：{caller}\n\n"
-        "要求：\n"
-        f"- 只输出脚本文本，不要包含任何其他内容\n"
-        f"- 脚本需要具有元叙事风格，即围绕这通电话本身展开，提到有人正在打电话这件事\n"
-        f"- 在对话中自然地融入来电者的名字（{caller}）和接听者的名字（{receiver}）\n"
-        f"- 篇幅控制在100字左右\n"
-        f"- 脚本应以接听者（{receiver}）为倾听对象，让对方听到后感到亲切有趣\n"
-        f"旁白设定：\n"
-        f"脚本由来电者 {caller} 以第一人称进行讲述。\n"
-        f"{caller} 描述自己正在给 {receiver} 打电话的情景。"
-    )
-    job_name = submit_job("llama", prompt)
+    translate_prompt = (
+            f"Please translate the following prompt to {language}:\n"
+            "Preserve all personal names exactly as written.\n \n"
+
+            "You are a ringtone script writer. Generate a short, cute phone call script.\n\n"
+            "CONTEXT:\n"
+            f"- Caller: {caller}\n"
+            f"- Receiver: {receiver}\n"
+            f"- Narrator/Voice: {caller}\n\n"
+            "INSTRUCTIONS:\n"
+            f"- Output ONLY the script text (nothing else)\n"
+            f"- The script is meta - it discusses the call itself and the fact that someone is calling\n"
+            f"- Include the caller's name ({caller}) and receiver's name ({receiver}) naturally in the dialogue\n"
+            f"- Keep it around 100 words\n"
+            f"- Write it to be heard by the receiver ({receiver})\n"
+            f"NARRATOR:\n"
+            f"The script is narrated by {caller} (the caller) in 1st person.\n"
+            f"{caller} describes their situation calling {receiver}."
+        )
+    # Translate
+    translate_job_name = submit_job("llama", translate_prompt)
     set_job(job_id, {
         "status": "running",
-        "llm_job_id": job_name,
-        "llm_status": "submitted",
+        "llm_translate_job_id": translate_job_name,
+        "llm_translate_status": "submitted",
     })
-    script = wait_for_result(
-        job_id,
-        "llama",
-        job_name
-    )
+    prompt = wait_for_result(job_id, "llama", translate_job_name, "llm_translate")
+
+    # Generate script
+    script_generation_name = submit_job("llama", prompt)
+    set_job(job_id, {
+        "status": "running",
+        "script_generation_job_id": script_generation_name,
+        "script_generation_status": "submitted",
+    })
+    script = wait_for_result(job_id, "llama", script_generation_name, "script_generation")
     return script
 
-def create_ringtone(job_id: str, receiver: str, caller: str, voice_clip_path: str):
+def create_ringtone(job_id: str, receiver: str, caller: str, voice_clip_path: str, language: str ):
     set_job(job_id, {"status": "running"})
     try:
-        # 1. Generate script using LLM
-        script = generate_script(receiver=receiver, caller=caller, job_id=job_id)
+        # 0. wait for language detection to finish (if not already done)
+        if language is None:
+            language = wait_for_language(clip_id=voice_clip_path, uid=job_id)
+            set_job(job_id, {"status": "waiting", "language": language})
+
+        # 1. Generate script in the target language using LLMs
+        script = generate_script(receiver=receiver, caller=caller, job_id=job_id, language=language)
 
         # 2. Generate signed URL for reference audio
         reference_audio_url = create_read_signed_url(voice_clip_path)
@@ -264,15 +277,9 @@ def create_ringtone(job_id: str, receiver: str, caller: str, voice_clip_path: st
             "tts_job_id": tts_job,
             "tts_status": "submitted",
         })
+        wav_bytes = wait_for_result(job_id, "tts", tts_job, "tts")
 
-        # 4. Wait for TTS result
-        wav_bytes = wait_for_result(job_id, "tts", tts_job)
-        set_job(job_id, {
-            "status": "running",
-            "tts_status": "completed",
-        })
-
-        # 5. Store the ringtone
+        # 4. Store the ringtone
         output_key = save_ringtone(wav_bytes=wav_bytes, caller=caller)
         set_job(job_id, {
             "status": "done",
@@ -287,9 +294,3 @@ def create_ringtone(job_id: str, receiver: str, caller: str, voice_clip_path: st
         })
 
 
-if __name__ == "__main__":
-    print(create_ringtone(
-        receiver="Viktor",
-        caller="Mille",
-        voice_clip_path="uploads/reference.wav"
-    ))

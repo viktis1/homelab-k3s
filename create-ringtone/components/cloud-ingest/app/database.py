@@ -29,28 +29,26 @@ def init_db():
                 contact TEXT NOT NULL,
                 file_path TEXT NOT NULL,
                 public BOOLEAN NOT NULL DEFAULT FALSE,
+                language TEXT DEFAULT NULL,
                 created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
             )
         """)
 
 
 
-def upload_voice(
-        voice_uuid: str,  
-        user_id: str | None, 
-        contact: str, 
-        public: bool,
-        file_path: str
-        ) -> bool:
-    """
-    Register an uploaded voice.
-
-    Returns True if created, False if the UUID already exists.
-    """
+def register_voice(
+    voice_uuid: str,
+    user_id: str | None,
+    contact: str,
+    public: bool,
+    file_path: str,
+) -> bool:
+    """Register a voice recording without its language."""
     with connect() as conn:
         row = conn.execute(
             """
-            INSERT INTO voice_uploads (uuid, user_id, contact, file_path, public)
+            INSERT INTO voice_uploads
+                (uuid, user_id, contact, file_path, public)
             VALUES (%s, %s, %s, %s, %s)
             ON CONFLICT (uuid) DO NOTHING
             RETURNING uuid
@@ -59,3 +57,15 @@ def upload_voice(
         ).fetchone()
 
     return row is not None
+
+def update_voice_language(voice_uuid: str, language: str):
+    """Update the detected language of a recording."""
+    with connect() as conn:
+        conn.execute(
+            """
+            UPDATE voice_uploads
+            SET language = %s
+            WHERE uuid = %s
+            """,
+            (language, uuid.UUID(voice_uuid)),
+        )

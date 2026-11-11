@@ -13,6 +13,7 @@ from firebase_admin import auth
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from google.auth.credentials import AnonymousCredentials
 import secrets
+import langcodes
 
 
 from database import init_db, create_job, set_job, get_job, return_voice, list_user_voices
@@ -76,6 +77,13 @@ class CreateRingtoneRequest(BaseModel): # the following is nice for docs
     job_id: UUID4 | None = Field(
         default=None,
         description="Optional UUID4. Reusing an existing ID returns the existing job.",
+    )
+    language: str = Field(
+        default="auto",
+        min_length=2,
+        max_length=50,
+        description="Target language for the ringtone. 'auto' uses the detected voice language.",
+        examples=["auto", "da", "en", "ja", "es", "fr"],
     )
 
 # create a way to authenticate users with firebase.
@@ -160,6 +168,8 @@ def generate(
     if recording is None:
         raise HTTPException(status_code=404, detail="Voice clip not found")
     voice_clip_path = recording["file_path"]
+    language_code = recording["language"] if request.language == "auto" else request.language
+    language = langcodes.Language.get(language_code).display_name("en")
 
     # 3. Create a job in Postgres. Will return False if the job ID already exists.
     created = create_job(
@@ -181,6 +191,7 @@ def generate(
             request.receiver,
             request.caller,
             voice_clip_path,
+            language = language
         )
 
     return {
