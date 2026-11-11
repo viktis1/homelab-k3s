@@ -10,7 +10,7 @@ import requests
 from botocore.config import Config
 from botocore.exceptions import ClientError
 
-from database import set_job
+from database import set_job, return_voice
 
 
 # RustFS is the local object storage. Voice-upload is the bucket for uploaded reference audio.
@@ -199,6 +199,20 @@ def get_reference_audio_stream(object_key: str):
 # ---------------------------------------------------------------------------
 # Full creation pipeline
 # ---------------------------------------------------------------------------
+def wait_for_language(clip_id: str, uid: str, timeout_seconds: int = 1200) -> str:
+    """Wait until language detection has updated PostgreSQL."""
+    deadline = time.monotonic() + timeout_seconds
+
+    while time.monotonic() < deadline:
+        recording = return_voice(clip_id, uid)
+
+        if recording and recording["language"]:
+            return recording["language"]
+
+        time.sleep(10)
+
+    raise TimeoutError(f"Language detection timed out for {clip_id}")
+
 def generate_script(receiver: str, caller: str, job_id: str, language: str)-> str:
     """
     Translate the english prompt to the target language.
@@ -230,10 +244,6 @@ def generate_script(receiver: str, caller: str, job_id: str, language: str)-> st
         "llm_translate_status": "submitted",
     })
     prompt = wait_for_result(job_id, "llama", translate_job_name, "llm_translate")
-    set_job(job_id, {
-        "status": "running",
-        "llm_translate_status": "completed",
-    })
 
     # Generate script
     job_name = submit_job("llama", prompt)
@@ -242,10 +252,6 @@ def generate_script(receiver: str, caller: str, job_id: str, language: str)-> st
         "script_generation_status": "submitted",
     })
     script = wait_for_result(job_id, "llama", job_name, "script_generation")
-    set_job(job_id, {
-        "status": "running",
-        "script_generation_status": "completed",
-    })
     return script
 
 def create_ringtone(job_id: str, receiver: str, caller: str, voice_clip_path: str, language: str ):
@@ -265,10 +271,6 @@ def create_ringtone(job_id: str, receiver: str, caller: str, voice_clip_path: st
             "tts_status": "submitted",
         })
         wav_bytes = wait_for_result(job_id, "tts", tts_job, "tts")
-        set_job(job_id, {
-            "status": "running",
-            "tts_status": "completed",
-        })
 
         # 4. Store the ringtone
         output_key = save_ringtone(wav_bytes=wav_bytes, caller=caller)

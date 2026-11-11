@@ -189,7 +189,7 @@ function trackJob(job) {
             ];
             if (current.created_at)
                 lines.push(`Created: ${new Date(current.created_at).toLocaleString()}`);
-            for (const type of ["llama", "tts"]) {
+            for (const type of ["llm_translate", "script_generation", "tts"]) {
                 if (current[`${type}_job_id`])
                     lines.push(`${type.toUpperCase()} Job: ${current[`${type}_job_id`]}`);
                 if (current[`${type}_status`])
