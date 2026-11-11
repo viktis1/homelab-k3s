@@ -142,7 +142,7 @@ voice.onchange = () => {
     for (const item of selectedVoice.clips) {
         const option = document.createElement("option");
         option.value = item.id;
-        option.textContent = item.name;
+        option.textContent = `(${item.language ?? "Detecting language..."}) ${item.name}`;
         clip.appendChild(option);
     }
 };
