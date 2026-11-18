@@ -1,7 +1,7 @@
-boto3
-fastapi
-requests
-uvicorn
-psycopg[binary]
-firebase-admin
-langcodes[data]
+boto3==1.44.1
+fastapi==0.162.4
+requests==2.34.2
+uvicorn==0.54.0
+psycopg[binary]==3.3.8
+firebase-admin==7.7.0
+langcodes[data]==3.5.1
