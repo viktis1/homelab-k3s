@@ -2,4 +2,4 @@ boto3==1.43.100
 google-cloud-storage==3.14.1
 google-cloud-pubsub==2.41.0
 psycopg[binary]==3.3.8
-requests==2.43.2
+requests==2.34.2
